@@ -2,6 +2,9 @@ import streamlit as st
 import json
 import openai
 import tempfile
+from streamlit_webrtc import webrtc_streamer, AudioProcessorBase
+import av
+import os
 
 st.set_page_config(page_title="Évaluation Médicale IA", page_icon="🧠")
 st.title("🧠 Application d'Évaluation Médicale Automatisée avec GPT-4 et Transcription Audio")
@@ -33,33 +36,47 @@ with tab2:
         st.markdown("**Grille chargée :**")
         st.json(rubric)
 
-# 2. Audio de l'étudiant
-st.markdown("## 🎤 Réponse orale de l'étudiant")
-audio_file = st.file_uploader("Charger un fichier audio (.mp3, .wav, .m4a)", type=["mp3", "wav", "m4a"])
-student_response = ""
-
+# 2. Clé API OpenAI
 openai_api_key = st.text_input("Clé API OpenAI (GPT-4 & Whisper)", type="password")
 
-if st.button("🔈 Transcrire l'audio avec Whisper"):
-    if not audio_file or not openai_api_key:
-        st.warning("Veuillez charger un fichier audio et fournir votre clé API.")
-    else:
-        with st.spinner("Transcription en cours..."):
-            openai.api_key = openai_api_key
-            with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-                tmp_file.write(audio_file.read())
-                tmp_path = tmp_file.name
+# 3. Audio de l'étudiant
+st.markdown("## 🎤 Réponse orale de l'étudiant")
+audio_file = st.file_uploader("Charger un fichier audio (.mp3, .wav, .m4a)", type=["mp3", "wav", "m4a"])
 
-            try:
-                audio_file_for_api = open(tmp_path, "rb")
-                transcript = openai.Audio.transcribe("whisper-1", audio_file_for_api, language="fr")
-                student_response = transcript["text"]
-                st.success("Transcription terminée ✅")
-                st.text_area("Texte transcrit :", student_response, height=250)
-            except Exception as e:
-                st.error(f"Erreur lors de la transcription : {e}")
+st.markdown("### 🔴 Ou enregistrer directement depuis le navigateur :")
+class AudioProcessor(AudioProcessorBase):
+    def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
+        return frame
 
-# 3. Évaluation GPT-4
+webrtc_ctx = webrtc_streamer(
+    key="audio",
+    mode="SENDONLY",
+    in_audio=True,
+    audio_processor_factory=AudioProcessor,
+    media_stream_constraints={"audio": True, "video": False},
+    async_processing=True,
+)
+
+recorded_audio_path = None
+student_response = ""
+
+if audio_file and openai_api_key and st.button("🔈 Transcrire l'audio téléchargé"):
+    with st.spinner("Transcription en cours..."):
+        openai.api_key = openai_api_key
+        with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+            tmp_file.write(audio_file.read())
+            tmp_path = tmp_file.name
+
+        try:
+            audio_file_for_api = open(tmp_path, "rb")
+            transcript = openai.Audio.transcribe("whisper-1", audio_file_for_api, language="fr")
+            student_response = transcript["text"]
+            st.success("Transcription terminée ✅")
+            st.text_area("Texte transcrit :", student_response, height=250)
+        except Exception as e:
+            st.error(f"Erreur lors de la transcription : {e}")
+
+# 4. Évaluation GPT-4
 if st.button("🧠 Générer l'évaluation avec GPT-4"):
     if not (clinical_text and rubric and student_response):
         st.warning("Merci de charger le cas, la grille et la réponse de l'étudiant.")
