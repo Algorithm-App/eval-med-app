@@ -2,9 +2,8 @@ import streamlit as st
 import json
 import openai
 import tempfile
-from streamlit_webrtc import webrtc_streamer, AudioProcessorBase
-import av
 import os
+from streamlit.components.v1 import html
 
 st.set_page_config(page_title="Évaluation Médicale IA", page_icon="🧠")
 st.title("🧠 Application d'Évaluation Médicale Automatisée avec GPT-4 et Transcription Audio")
@@ -41,23 +40,44 @@ openai_api_key = st.text_input("Clé API OpenAI (GPT-4 & Whisper)", type="passwo
 
 # 3. Audio de l'étudiant
 st.markdown("## 🎤 Réponse orale de l'étudiant")
-audio_file = st.file_uploader("Charger un fichier audio (.mp3, .wav, .m4a)", type=["mp3", "wav", "m4a"])
+audio_file = st.file_uploader("📤 Charger un fichier audio (.mp3, .wav, .m4a)", type=["mp3", "wav", "m4a"])
 
-st.markdown("### 🔴 Ou enregistrer directement depuis le navigateur :")
-class AudioProcessor(AudioProcessorBase):
-    def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
-        return frame
+st.markdown("### 🎙️ Ou enregistrer directement depuis le navigateur :")
+html('''
+<script>
+let mediaRecorder;
+let audioChunks = [];
 
-webrtc_ctx = webrtc_streamer(
-    key="audio",
-    mode="SENDONLY",
-    in_audio=True,
-    audio_processor_factory=AudioProcessor,
-    media_stream_constraints={"audio": True, "video": False},
-    async_processing=True,
-)
+function startRecording() {
+  navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(stream => {
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.start();
 
-recorded_audio_path = None
+      mediaRecorder.addEventListener("dataavailable", event => {
+        audioChunks.push(event.data);
+      });
+
+      mediaRecorder.addEventListener("stop", () => {
+        const audioBlob = new Blob(audioChunks);
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const downloadLink = document.getElementById("download");
+        downloadLink.href = audioUrl;
+        downloadLink.download = "reponse_etudiant.wav";
+        downloadLink.style.display = "block";
+      });
+    });
+}
+
+function stopRecording() {
+  mediaRecorder.stop();
+}
+</script>
+<button onclick="startRecording()">🎙️ Démarrer l'enregistrement</button>
+<button onclick="stopRecording()">⏹️ Arrêter l'enregistrement</button>
+<a id="download" style="display:none; margin-top:10px">📥 Télécharger l'enregistrement</a>
+''', height=200)
+
 student_response = ""
 
 if audio_file and openai_api_key and st.button("🔈 Transcrire l'audio téléchargé"):
