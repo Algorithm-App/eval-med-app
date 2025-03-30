@@ -2,3 +2,5 @@ streamlit
 openai
 python-docx
 whisper
+streamlit-webrtc
+av
