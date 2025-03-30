@@ -1,16 +1,18 @@
 import streamlit as st
 import json
 import openai
+import tempfile
 
 st.set_page_config(page_title="Évaluation Médicale IA", page_icon="🧠")
-st.title("🧠 Application d'Évaluation Médicale Automatisée avec GPT-4")
+st.title("🧠 Application d'Évaluation Médicale Automatisée avec GPT-4 et Transcription Audio")
 
 st.markdown("""
 Cette application permet à l'opérateur de :
 1. Charger un cas clinique
 2. Charger une grille d'évaluation (format JSON)
-3. Charger la réponse de l'étudiant (transcrite)
-4. Générer une évaluation automatisée à l'aide de GPT-4
+3. Enregistrer ou charger la réponse orale de l'étudiant
+4. Transcrire automatiquement l'audio avec Whisper (OpenAI)
+5. Évaluer la réponse avec GPT-4
 """)
 
 # 1. Cas clinique
@@ -31,18 +33,33 @@ with tab2:
         st.markdown("**Grille chargée :**")
         st.json(rubric)
 
-# 2. Réponse étudiante
-st.markdown("## 🎤 Réponse de l'étudiant")
-student_response_file = st.file_uploader("Charger la réponse transcrite de l'étudiant (.txt)", type=["txt"])
+# 2. Audio de l'étudiant
+st.markdown("## 🎤 Réponse orale de l'étudiant")
+audio_file = st.file_uploader("Charger un fichier audio (.mp3, .wav, .m4a)", type=["mp3", "wav", "m4a"])
 student_response = ""
-if student_response_file is not None:
-    student_response = student_response_file.read().decode("utf-8")
-    st.text_area("Réponse étudiante :", value=student_response, height=250)
 
-# 3. Clé API OpenAI
-openai_api_key = st.text_input("Clé API OpenAI (GPT-4)", type="password")
+openai_api_key = st.text_input("Clé API OpenAI (GPT-4 & Whisper)", type="password")
 
-# 4. Évaluation GPT-4
+if st.button("🔈 Transcrire l'audio avec Whisper"):
+    if not audio_file or not openai_api_key:
+        st.warning("Veuillez charger un fichier audio et fournir votre clé API.")
+    else:
+        with st.spinner("Transcription en cours..."):
+            openai.api_key = openai_api_key
+            with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+                tmp_file.write(audio_file.read())
+                tmp_path = tmp_file.name
+
+            try:
+                audio_file_for_api = open(tmp_path, "rb")
+                transcript = openai.Audio.transcribe("whisper-1", audio_file_for_api, language="fr")
+                student_response = transcript["text"]
+                st.success("Transcription terminée ✅")
+                st.text_area("Texte transcrit :", student_response, height=250)
+            except Exception as e:
+                st.error(f"Erreur lors de la transcription : {e}")
+
+# 3. Évaluation GPT-4
 if st.button("🧠 Générer l'évaluation avec GPT-4"):
     if not (clinical_text and rubric and student_response):
         st.warning("Merci de charger le cas, la grille et la réponse de l'étudiant.")
