@@ -11,11 +11,18 @@ from openai import OpenAI
 st.set_page_config(page_title="Évaluation Médicale IA", page_icon="🧠")
 st.title("🧠 Évaluation Médicale IA Automatisée")
 
-# API KEY
+# API KEY + ORG + PROJECT
 openai_api_key = st.text_input("🔐 Clé API OpenAI (Whisper + GPT-4)", type="password")
+openai_org = st.text_input("🏢 ID d'organisation OpenAI (org-...)")
+openai_project = st.text_input("📁 ID de projet OpenAI (proj_...)")
+
 client = None
-if openai_api_key:
-    client = OpenAI(api_key=openai_api_key)
+if openai_api_key and openai_org and openai_project:
+    client = OpenAI(
+        api_key=openai_api_key,
+        organization=openai_org,
+        project=openai_project
+    )
 
 # Initialiser les states
 if "transcript" not in st.session_state:
