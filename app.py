@@ -5,8 +5,13 @@ import tempfile
 from docx import Document
 from streamlit.components.v1 import html
 
+# 🔐 Configuration API
 st.set_page_config(page_title="Évaluation Médicale IA", page_icon="🧠")
 st.title("🧠 Évaluation Médicale IA Automatisée")
+
+openai_api_key = st.text_input("🔐 Clé API OpenAI (Whisper + GPT-4)", type="password")
+if openai_api_key:
+    openai.api_key = openai_api_key
 
 st.markdown("""
 Cette page vous permet de :
@@ -42,10 +47,7 @@ if rubric_docx is not None:
                 rubric.append({"critère": parts[1], "points": points})
     st.json(rubric)
 
-# 4. Clé API OpenAI
-openai_api_key = st.text_input("🔐 Clé API OpenAI (Whisper + GPT-4)", type="password")
-
-# 5. Audio de l'étudiant
+# 4. Audio de l'étudiant
 st.markdown("## 🎤 Réponse orale de l'étudiant")
 audio_file = st.file_uploader("📤 Charger un fichier audio (.mp3, .wav, .m4a)", type=["mp3", "wav", "m4a"])
 
@@ -85,10 +87,10 @@ function stopRecording() {
 <a id="download" style="display:none; margin-top:10px">📥 Télécharger l'enregistrement</a>
 ''', height=200)
 
+# 5. Transcription
 student_response = ""
 if audio_file and openai_api_key and st.button("🔈 Transcrire l'audio"):
     with st.spinner("Transcription en cours..."):
-        openai.api_key = openai_api_key
         with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
             tmp_file.write(audio_file.read())
             tmp_path = tmp_file.name
@@ -122,7 +124,6 @@ Ta tâche :
 3. Rédige un commentaire global concis (max 5 lignes).
 """
         with st.spinner("Évaluation en cours avec GPT-4..."):
-            openai.api_key = openai_api_key
             try:
                 response = openai.ChatCompletion.create(
                     model="gpt-4",
@@ -132,5 +133,7 @@ Ta tâche :
                 result = response['choices'][0]['message']['content']
                 st.markdown(f"### ✅ Résultat de l'évaluation de l'étudiant {student_id}")
                 st.write(result)
+                st.markdown("### 📝 Transcription de l'étudiant")
+                st.text_area("Texte transcrit :", value=student_response, height=200)
             except Exception as e:
                 st.error(f"Erreur GPT-4 : {e}")
