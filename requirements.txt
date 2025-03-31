@@ -1,6 +1,7 @@
-streamlit
-openai
-python-docx
-whisper
+streamlit>=1.32.0
 streamlit-webrtc
+openai>=1.0.0
+python-docx
+scipy
 av
+numpy
