@@ -10,6 +10,8 @@ import av
 import numpy as np
 import queue
 from scipy.io.wavfile import write
+from streamlit_webrtc import WebRtcMode
+
 
 # Configuration page
 st.set_page_config(page_title="Évaluation Médicale IA", page_icon="🧠")
@@ -80,7 +82,7 @@ RTC_CONFIGURATION = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.goog
 
 ctx = webrtc_streamer(
     key="eval-audio",
-    mode="SENDONLY",
+    mode=WebRtcMode.SENDONLY,
     audio_receiver_size=1024,
     rtc_configuration=RTC_CONFIGURATION,
     media_stream_constraints=MediaStreamConstraints(audio=True, video=False),
