@@ -20,10 +20,13 @@ os.makedirs(AUDIO_DIR, exist_ok=True)
 DB_PATH = "evaluation.db"
 conn = sqlite3.connect(DB_PATH)
 c = conn.cursor()
-c.execute('''CREATE TABLE IF NOT EXISTS etudiants (id TEXT PRIMARY KEY, date_passage TEXT)''')
-c.execute('''CREATE TABLE IF NOT EXISTS evaluations (id_etudiant TEXT, critere TEXT, score INTEGER, justification TEXT, synthese REAL, prise_en_charge REAL, note_finale REAL, commentaire TEXT)''')
-c.execute('''CREATE TABLE IF NOT EXISTS evaluateurs (id_etudiant TEXT, eval1 REAL, eval2 REAL)''')
+c.execute('''CREATE TABLE IF NOT EXISTS evaluations (
+    id_etudiant TEXT PRIMARY KEY, 
+    note_finale REAL,
+    commentaire TEXT
+)''')
 conn.commit()
+
 
 # Barre latérale : identifiants
 with st.sidebar:
