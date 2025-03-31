@@ -1,6 +1,6 @@
-streamlit==1.38.0 
-streamlit-webrtc==0.53.10
-openai
+streamlit==1.38.0
+streamlit-webrtc==0.45.0
+openai>=1.0.0
 python-docx
 scipy
 av
