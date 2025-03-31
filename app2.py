@@ -19,6 +19,12 @@ with st.sidebar:
     openai_org = st.text_input("ID Organisation", help="ex: org-xxxxx")
     openai_project = st.text_input("ID Projet", help="ex: proj_xxxx")
 
+    if st.button("🧹 Réinitialiser la session"):
+        st.session_state.transcript = ""
+        st.session_state.evaluation = ""
+        st.session_state.student_id = ""
+        st.experimental_rerun()
+
 client = None
 if openai_api_key and openai_org and openai_project:
     client = OpenAI(
