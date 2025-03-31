@@ -5,11 +5,11 @@ import os
 from docx import Document
 from datetime import datetime
 from openai import OpenAI
-from streamlit_webrtc import webrtc_streamer, AudioProcessorBase
-from streamlit_webrtc import RTCConfiguration, MediaStreamConstraints
+from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, RTCConfiguration, MediaStreamConstraints
 import av
 import numpy as np
 import queue
+from scipy.io.wavfile import write
 
 # Configuration page
 st.set_page_config(page_title="Évaluation Médicale IA", page_icon="🧠")
@@ -79,20 +79,18 @@ class AudioProcessor(AudioProcessorBase):
 RTC_CONFIGURATION = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
 
 ctx = webrtc_streamer(
-    key="key",
-    mode="sendonly",
+    key="eval-audio",
+    mode="SENDONLY",
     audio_receiver_size=1024,
     rtc_configuration=RTC_CONFIGURATION,
     media_stream_constraints=MediaStreamConstraints(audio=True, video=False),
     audio_processor_factory=AudioProcessor
 )
 
-
 # Traitement audio enregistré
 if ctx.audio_processor and st.button("🔈 Transcrire l'enregistrement avec Whisper"):
     pcm_data = ctx.audio_processor.get_audio()
     tmp_wav_path = tempfile.mktemp(suffix=".wav")
-    from scipy.io.wavfile import write
     write(tmp_wav_path, 48000, pcm_data)
     try:
         with open(tmp_wav_path, "rb") as f:
