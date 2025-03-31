@@ -60,55 +60,57 @@ if rubric_docx is not None:
     with st.expander("📊 Grille d'évaluation", expanded=False):
         st.json(rubric)
 
-# --- 🎙️ Enregistrement audio direct avec visualisation ---
-st.subheader("🎤 Enregistrement audio (WebRTC) avec visualisation")
-audio_queue = queue.Queue()
+# 🎙️ Réponse orale - WebRTC
+st.subheader("🎤 Enregistrement direct (WebRTC)")
 
 class AudioProcessor(AudioProcessorBase):
-    def __init__(self):
+    def __init__(self) -> None:
         self.recorded_frames = []
         self.level = 0
 
     def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
         pcm = frame.to_ndarray()
-        volume_norm = np.linalg.norm(pcm) / (pcm.size + 1e-8)
-        self.level = min(volume_norm * 10, 1.0)
+        self.level = min(np.linalg.norm(pcm) / 10000, 1.0)
         self.recorded_frames.append(pcm)
         return frame
 
-    def get_audio(self):
-        return np.concatenate(self.recorded_frames, axis=1).flatten()
+    def get_wav(self):
+        if self.recorded_frames:
+            audio = np.concatenate(self.recorded_frames, axis=1).flatten()
+            tmp_path = tempfile.mktemp(suffix=".wav")
+            write(tmp_path, 48000, audio)
+            return tmp_path
+        return None
 
 ctx = webrtc_streamer(
-    key="recorder",
+    key="audio",
     mode=WebRtcMode.SENDONLY,
     audio_receiver_size=1024,
-    audio_processor_factory=AudioProcessor
+    audio_processor_factory=AudioProcessor,
 )
 
 if ctx.audio_processor:
     st.progress(ctx.audio_processor.level)
-    if st.button("🔈 Transcrire l'enregistrement"):
-        pcm_data = ctx.audio_processor.get_audio()
-        tmp_wav_path = tempfile.mktemp(suffix=".wav")
-        write(tmp_wav_path, 48000, pcm_data)
-        try:
-            with open(tmp_wav_path, "rb") as f:
-                transcript = client.audio.transcriptions.create(
-                    model="whisper-1",
-                    file=f,
-                    language="fr"
-                )
-            st.session_state.transcript = transcript.text
-            st.success("✅ Transcription réussie")
-        except Exception as e:
-            st.error(f"❌ Erreur : {e}")
+    if st.button("🔈 Transcrire l'enregistrement WebRTC"):
+        wav_path = ctx.audio_processor.get_wav()
+        if wav_path and client:
+            with open(wav_path, "rb") as f:
+                try:
+                    transcript = client.audio.transcriptions.create(
+                        model="whisper-1",
+                        file=f,
+                        language="fr"
+                    )
+                    st.session_state.transcript = transcript.text
+                    st.success("✅ Transcription réussie (WebRTC)")
+                except Exception as e:
+                    st.error(f"❌ Erreur Whisper : {e}")
 
-# --- 📤 Chargement de fichier audio ---
-st.subheader("📥 Ou bien charger un fichier audio existant (.mp3, .wav, .m4a)")
-audio_file = st.file_uploader("Fichier audio", type=["mp3", "wav", "m4a"])
+# 📥 Téléchargement manuel fichier audio
+st.subheader("📁 Ou charger un fichier audio")
+audio_file = st.file_uploader("Charger un fichier (.mp3, .wav, .m4a)", type=["mp3", "wav", "m4a"])
 
-if audio_file and client and st.button("🔈 Transcrire le fichier audio"):
+if audio_file and client and st.button("🎧 Transcrire le fichier audio"):
     ext = os.path.splitext(audio_file.name)[1]
     with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp_file:
         tmp_file.write(audio_file.read())
@@ -122,11 +124,10 @@ if audio_file and client and st.button("🔈 Transcrire le fichier audio"):
             )
         st.session_state.transcript = transcript.text
         os.remove(tmp_path)
-        st.success("✅ Transcription réussie")
+        st.success("✅ Transcription réussie (fichier audio)")
     except Exception as e:
         st.error(f"❌ Erreur : {e}")
 
-# Affichage transcription si disponible
 if st.session_state.transcript:
     st.text_area("📝 Texte transcrit :", value=st.session_state.transcript, height=200)
 
