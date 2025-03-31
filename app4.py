@@ -236,84 +236,90 @@ if audio_file and client and st.button("🔈 Transcrire avec Whisper"):
 if st.session_state.transcript:
     st.text_area("📝 Transcription", value=st.session_state.transcript, height=200)
 
+
+
+
 # GPT-4 : évaluation
 if st.button("🧠 Évaluation"):
     if not (clinical_text and rubric and st.session_state.transcript):
         st.warning("⚠️ Remplis tous les champs nécessaires.")
     else:
         prompt = f"""
-        Tu es un examinateur médical rigoureux et impartial.
+Tu es un examinateur médical rigoureux. Voici :
+- ID étudiant : {student_id}
+- Cas clinique : {clinical_text}
+- Réponse de l'étudiant : {st.session_state.transcript}
+- Grille d'évaluation : {json.dumps(rubric, ensure_ascii=False)}
 
-        Voici les éléments à considérer :
-        - ID étudiant : {student_id}
-        - Cas clinique : {clinical_text}
-        - Réponse de l'étudiant : {st.session_state.transcript}
-        - Grille d'évaluation : {json.dumps(rubric, ensure_ascii=False)}
+Ta tâche est d'évaluer la réponse de l'étudiant selon les critères suivants :
+1. Évalue chaque critère individuellement avec justification sans inventer de données.
+2. Donne un score total (sur 18).
+3. Évalue la qualité de la synthèse (0 à 1) et de la prise en charge (0 à 1).
+4. Donne un score final sur 20.
+5. Rédige un commentaire global (maximum 5 lignes).
+N'invente jamais d'informations absentes de la réponse de l'étudiant.
 
-        Ta mission est d'évaluer la réponse orale de l'étudiant selon les règles suivantes :
+Voici un exemple de format JSON strict que tu dois retourner :
+```json
+{{
+  "notes": [
+    {{
+      "critère": "Prescrit des hémocultures",
+      "score": 1,
+      "justification": "Mentionné au début comme étape importante."
+    }},
+    {{
+      "critère": "Pose diagnostic de pyélonéphrite",
+      "score": 0,
+      "justification": "Jamais clairement formulé par l'étudiant."
+    }}
+  ],
+  "synthese": 0.75,
+  "prise_en_charge": 1.0,
+  "note_finale": 18.5,
+  "commentaire": "Réponse fluide, très bien structurée avec bonnes priorités."
+}}
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+            max_tokens=1500
+        )
 
-        1. Pour chaque critère de la grille, indique clairement s'il est observé (score positif) ou non observé (score nul), en justifiant uniquement à partir des propos précis de l'étudiant.
-        2. Calcule le score total sur 18 points selon la grille fournie.
-        3. Attribue une note de synthèse (0 à 1) et une note de prise en charge (0 à 1).
-        4. Calcule une note finale sur 20.
-        5. Fournis un commentaire global justifiant la note finale (maximum 5 lignes).
+        result_text = response.choices[0].message.content.strip()
+        json_match = re.search(r"\{.*\}", result_text, re.DOTALL)
+        if json_match:
+            result = json.loads(json_match.group())
+        else:
+            raise ValueError("❌ Aucun bloc JSON détecté dans la réponse.")
 
-        ⚠️ N'invente aucune information absente de la réponse de l'étudiant. Si une information n'est pas explicitement mentionnée, considère-la comme absente.
+        # Affichage
+        st.subheader(f"🧠 Note finale : {result['note_finale']} / 20")
+        st.markdown("### 🧩 Détail des critères évalués par l'IA")
+        for critere in result["notes"]:
+            st.markdown(f"- **{critere['critère']}** — Score : `{critere['score']}`")
+            st.markdown(f"  > _Justification_ : {critere['justification']}")
 
-        Retourne STRICTEMENT et EXCLUSIVEMENT un JSON conforme à ce format :
-        {{
-          "notes": [{{"critère": "...", "score": 1, "justification": "..."}}],
-          "synthese": 0.5,
-          "prise_en_charge": 1.0,
-          "note_finale": 19,
-          "commentaire": "Très bonne réponse."
-        }}
+        # Stockage temporaire
+        st.session_state['note_ia'] = result['note_finale']
+        st.session_state['result_json'] = json.dumps(result, ensure_ascii=False)
 
-        Aucun texte supplémentaire hors du JSON ne doit être ajouté.
-        """
+        # Notes manuelles
+        eval1 = st.number_input("Note évaluateur 1 (sur 20)", 0.0, 20.0, step=0.25)
+        eval2 = st.number_input("Note évaluateur 2 (sur 20)", 0.0, 20.0, step=0.25)
 
-        try:
-            response = client.chat.completions.create(
-                model="gpt-4",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.0,
-                max_tokens=1000
-            )
+        if st.button("💾 Sauvegarder les résultats"):
+            c.execute("""
+                INSERT OR REPLACE INTO evaluations (id_etudiant, note_ia, eval1, eval2)
+                VALUES (?, ?, ?, ?)
+            """, (student_id, result['note_finale'], eval1, eval2))
+            conn.commit()
+            st.success("✅ Résultats enregistrés avec succès dans SQLite !")
 
-            result_json = response.choices[0].message.content.strip()
-            result = json.loads(result_json)
+    except Exception as e:
+        st.error(f"❌ Erreur GPT-4 ou parsing JSON : {e}")
 
-            # Afficher la note finale de l'IA
-            # Afficher la note finale de l'IA
-            st.subheader(f"🧠 Note finale : {result['note_finale']} / 20")
-
-            # Détails de l’évaluation par critère
-            st.markdown("### 🧩 Détail des critères évalués par l'IA")
-            for critere in result["notes"]:
-                st.markdown(f"- **{critere['critère']}** — Score : `{critere['score']}`")
-                st.markdown(f"  > _Justification_ : {critere['justification']}")
-
-            # Stockage temporaire dans session_state
-            st.session_state['note_ia'] = result['note_finale']
-
-            # Champs pour notes évaluateurs
-            eval1 = st.number_input("Note évaluateur 1 (sur 20)", 0.0, 20.0, step=0.25)
-            eval2 = st.number_input("Note évaluateur 2 (sur 20)", 0.0, 20.0, step=0.25)
-
-            # Bouton de sauvegarde en SQLite
-            if st.button("💾 Sauvegarder les résultats"):
-                c.execute("""
-                    INSERT OR REPLACE INTO evaluations (id_etudiant, note_ia, eval1, eval2)
-                    VALUES (?, ?, ?, ?)
-                """, (student_id, result['note_finale'], eval1, eval2))
-                conn.commit()
-                st.success("✅ Résultats enregistrés avec succès dans SQLite !")
-
-        except json.JSONDecodeError:
-            st.error("❌ GPT-4 n'a pas retourné un JSON valide. Réessaie.")
-        except Exception as e:
-            st.error(f"❌ Erreur GPT-4 : {e}")
-            
 
 # Résultat IA + sauvegarde
 if st.session_state.result_json:
