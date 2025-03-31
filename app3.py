@@ -172,10 +172,25 @@ if st.button("🧠 Évaluer avec GPT-4 (JSON)"):
         st.warning("⚠️ Remplis tous les champs nécessaires.")
     else:
         prompt = f"""
-Tu es un examinateur médical. Voici :
+Tu es un examinateur médical rigoureux et impartial.
+
+Voici les éléments à considérer :
+- ID étudiant : {student_id}
 - Cas clinique : {clinical_text}
-- Réponse de l’étudiant : {st.session_state.transcript}
-- Grille d’évaluation : {json.dumps(rubric, ensure_ascii=False)}
+- Réponse de l'étudiant : {st.session_state.transcript}
+- Grille d'évaluation : {json.dumps(rubric, ensure_ascii=False)}
+
+Ta mission est d'évaluer la réponse orale de l'étudiant selon les règles suivantes :
+
+1. Pour chaque critère de la grille, indique s'il est observé ou non, et justifie ta décision en t'appuyant uniquement sur les propos de l'étudiant.
+2. Calcule le score total sur 18 points selon la grille fournie.
+3. Attribue une note de synthèse (sur 1 point) et une note de prise en charge (sur 1 point).
+4. Calcule une note finale sur 20.
+5. Fournis un commentaire global (5 lignes maximum) justifiant la note finale.
+
+⚠️ Ne jamais inventer d'informations absentes de la réponse de l'étudiant. Si un élément n’est pas clairement mentionné, considère qu’il n’est pas présent.
+Retourne un texte structuré, concis, et professionnel.
+"""
 
 Retourne uniquement un JSON structuré comme ceci :
 {{
