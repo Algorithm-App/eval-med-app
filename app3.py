@@ -105,9 +105,11 @@ if rubric_docx:
         st.json(rubric)
 
 # 🎙️ Enregistrement audio (HTML5)
-st.markdown("## 🎤 Enregistrement audio avec Chronomètre")
 
-st.components.v1.html("""
+st.markdown("## 🎤 Enregistrement audio avec Chronomètre (max 8 min)")
+
+# Injection de l'ID étudiant directement dans le HTML
+html_code = f"""
 <script>
 let mediaRecorder;
 let audioChunks = [];
@@ -117,9 +119,10 @@ let dataArray;
 let animationId;
 let timerInterval;
 let startTime;
+let maxDuration = 480000; // 8 minutes en millisecondes
 
-function startRecording() {
-    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+function startRecording() {{
+    navigator.mediaDevices.getUserMedia({{ audio: true }}).then(stream => {{
         audioContext = new AudioContext();
         const source = audioContext.createMediaStreamSource(stream);
         analyser = audioContext.createAnalyser();
@@ -132,7 +135,7 @@ function startRecording() {
         const canvasCtx = canvas.getContext("2d");
         canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
 
-        function draw() {
+        function draw() {{
             animationId = requestAnimationFrame(draw);
             analyser.getByteFrequencyData(dataArray);
             canvasCtx.fillStyle = 'rgb(255, 255, 255)';
@@ -140,58 +143,64 @@ function startRecording() {
             const barWidth = (canvas.width / bufferLength) * 2.5;
             let barHeight;
             let x = 0;
-            for(let i = 0; i < bufferLength; i++) {
+            for(let i = 0; i < bufferLength; i++) {{
                 barHeight = dataArray[i];
                 canvasCtx.fillStyle = 'rgb(' + (barHeight+100) + ',50,50)';
                 canvasCtx.fillRect(x, canvas.height - barHeight/2, barWidth, barHeight/2);
                 x += barWidth + 1;
-            }
-        }
+            }}
+        }}
 
         draw();
 
         mediaRecorder = new MediaRecorder(stream);
         mediaRecorder.start();
         audioChunks = [];
-        mediaRecorder.addEventListener("dataavailable", event => {
+        mediaRecorder.addEventListener("dataavailable", event => {{
             audioChunks.push(event.data);
-        });
+        }});
 
-        // Démarrer le chronomètre
+        // Chronomètre
         startTime = Date.now();
-        timerInterval = setInterval(() => {
+        timerInterval = setInterval(() => {{
             const elapsedTime = Date.now() - startTime;
             const minutes = String(Math.floor(elapsedTime / 60000)).padStart(2, '0');
             const seconds = String(Math.floor((elapsedTime % 60000) / 1000)).padStart(2, '0');
-            document.getElementById("timer").innerText = `${minutes}:${seconds}`;
-        }, 1000);
+            document.getElementById("timer").innerText = `${{minutes}}:${{seconds}}`;
 
-        mediaRecorder.addEventListener("stop", () => {
+            if (elapsedTime >= maxDuration) {{
+                stopRecording();
+            }}
+        }}, 1000);
+
+        mediaRecorder.addEventListener("stop", () => {{
             clearInterval(timerInterval);
             cancelAnimationFrame(animationId);
-            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            const audioBlob = new Blob(audioChunks, {{ type: 'audio/wav' }});
             const audioUrl = URL.createObjectURL(audioBlob);
             const downloadLink = document.getElementById("download");
             downloadLink.href = audioUrl;
-            downloadLink.download = "reponse_etudiant.wav";
+            downloadLink.download = "audio_{student_id}.wav"; // Nom dynamique ici
             downloadLink.style.display = "block";
-        });
-    });
-}
+        }});
+    }});
+}}
 
-function stopRecording() {
-    if (mediaRecorder) mediaRecorder.stop();
-}
+function stopRecording() {{
+    if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+}}
 </script>
 
 <button onclick="startRecording()">🎙️ Démarrer</button>
 <button onclick="stopRecording()">⏹️ Arrêter</button>
 <div style="margin-top:10px;font-size:20px;">
-    ⏱️ Durée : <span id="timer">00:00</span>
+    ⏱️ Durée : <span id="timer">00:00</span> / 08:00
 </div>
 <canvas id="visualizer" width="300" height="100" style="margin-top:10px; border:1px solid #ccc;"></canvas>
 <a id="download" style="display:none; margin-top:10px">📥 Télécharger l'enregistrement</a>
-""", height=320)
+"""
+
+st.components.v1.html(html_code, height=350)
 
 
 # 📤 Upload audio manuel
