@@ -237,7 +237,7 @@ if st.session_state.transcript:
     st.text_area("📝 Transcription", value=st.session_state.transcript, height=200)
 
 # GPT-4 : évaluation
-if st.button("🧠 Évaluer avec GPT-4 (JSON)"):
+if st.button("🧠 Évaluation"):
     if not (clinical_text and rubric and st.session_state.transcript):
         st.warning("⚠️ Remplis tous les champs nécessaires.")
     else:
@@ -285,7 +285,7 @@ if st.button("🧠 Évaluer avec GPT-4 (JSON)"):
 
             # Afficher la note finale de l'IA
             # Afficher la note finale de l'IA
-            st.subheader(f"🧠 Note finale GPT-4 : {result['note_finale']} / 20")
+            st.subheader(f"🧠 Note finale : {result['note_finale']} / 20")
 
             # Détails de l’évaluation par critère
             st.markdown("### 🧩 Détail des critères évalués par l'IA")
