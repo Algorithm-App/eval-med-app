@@ -51,11 +51,13 @@ with st.sidebar:
     openai_api_key = st.text_input("Clé API OpenAI", type="password")
     openai_org = st.text_input("ID Organisation", help="ex: org-xxxxx")
     openai_project = st.text_input("ID Projet", help="ex: proj_xxxx")
+
     if st.button("🧹 Réinitialiser la session"):
-    for key in ["transcript", "result_json", "student_id"]:
-        if key in st.session_state:
-            del st.session_state[key]
-    st.success("✅ Session réinitialisée. Saisis un nouvel étudiant.")
+        for key in ["transcript", "result_json", "student_id"]:
+            if key in st.session_state:
+                del st.session_state[key]
+        st.success("✅ Session réinitialisée. Saisis un nouvel étudiant.")
+
 
 
 client = None
