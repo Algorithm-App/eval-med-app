@@ -10,7 +10,7 @@ import pandas as pd
 
 # Configuration de la page
 st.set_page_config(page_title="Évaluation Médicale IA", page_icon="🧠")
-st.title("🧠 Évaluation Médicale IA Automatisée")
+st.title("Évaluation ECOS IA")
 
 # Création dossier audios
 AUDIO_DIR = "audios"
