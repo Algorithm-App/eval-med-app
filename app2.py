@@ -10,7 +10,7 @@ from scipy.io.wavfile import write
 
 # Configuration page
 st.set_page_config(page_title="Évaluation Médicale IA", page_icon="🧠")
-st.title("🧠 Évaluation Médicale IA Automatisée")
+st.title("Évaluation Médicale IA Automatisée")
 
 # Barre latérale pour les identifiants OpenAI
 with st.sidebar:
