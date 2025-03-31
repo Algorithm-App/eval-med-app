@@ -7,6 +7,7 @@ from docx import Document
 from datetime import datetime
 from openai import OpenAI
 import pandas as pd
+import re
 
 # Configuration de la page
 st.set_page_config(page_title="Évaluation Médicale IA", page_icon="🧠")
@@ -30,8 +31,6 @@ CREATE TABLE IF NOT EXISTS evaluations (
 ''')
 conn.commit()
 
-
-
 # Barre latérale : identifiants
 with st.sidebar:
     st.header("🔐 Identifiants OpenAI")
@@ -43,29 +42,6 @@ with st.sidebar:
             if key in st.session_state:
                 del st.session_state[key]
         st.success("✅ Session réinitialisée. Saisis un nouvel étudiant.")
-
-with st.sidebar:
-    st.markdown("---")
-    st.header("Administration de la base SQLite")
-
-    if st.button("🗑️ Effacer toutes les données"):
-        st.session_state["confirm_delete"] = True
-
-    if st.session_state.get("confirm_delete"):
-        confirm = st.checkbox("Je confirme vouloir effacer toutes les données définitivement.")
-        if confirm and st.button("✅ Confirmer la suppression"):
-            try:
-                c.execute("DELETE FROM evaluations")
-                c.execute("DELETE FROM etudiants")
-                c.execute("DELETE FROM evaluateurs")
-                conn.commit()
-                st.success("✅ Toutes les données ont été effacées avec succès.")
-                st.session_state["confirm_delete"] = False  # réinitialisation
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Erreur lors de l'effacement : {e}")
-
-
 
 # OpenAI client
 client = None
@@ -114,128 +90,6 @@ if rubric_json is not None:
     except Exception as e:
         st.error(f"Erreur lors du chargement du fichier JSON : {e}")
 
-
-# 🎙️ Enregistrement audio (HTML5)
-
-st.markdown("## Enregistrement audio (max 8 min)")
-
-# Injection de l'ID étudiant directement dans le HTML
-html_code = f"""
-<script>
-let mediaRecorder;
-let audioChunks = [];
-let audioContext;
-let analyser;
-let dataArray;
-let animationId;
-let timerInterval;
-let startTime;
-let maxDuration = 480000; // 8 minutes en millisecondes
-
-function startRecording() {{
-    navigator.mediaDevices.getUserMedia({{ audio: true }}).then(stream => {{
-        audioContext = new AudioContext();
-        const source = audioContext.createMediaStreamSource(stream);
-        analyser = audioContext.createAnalyser();
-        source.connect(analyser);
-        analyser.fftSize = 256;
-        const bufferLength = analyser.frequencyBinCount;
-        dataArray = new Uint8Array(bufferLength);
-
-        const canvas = document.getElementById("visualizer");
-        const canvasCtx = canvas.getContext("2d");
-        canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
-
-        function draw() {{
-            animationId = requestAnimationFrame(draw);
-            analyser.getByteFrequencyData(dataArray);
-            canvasCtx.fillStyle = 'rgb(255, 255, 255)';
-            canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
-            const barWidth = (canvas.width / bufferLength) * 2.5;
-            let barHeight;
-            let x = 0;
-            for(let i = 0; i < bufferLength; i++) {{
-                barHeight = dataArray[i];
-                canvasCtx.fillStyle = 'rgb(' + (barHeight+100) + ',50,50)';
-                canvasCtx.fillRect(x, canvas.height - barHeight/2, barWidth, barHeight/2);
-                x += barWidth + 1;
-            }}
-        }}
-
-        draw();
-
-        mediaRecorder = new MediaRecorder(stream);
-        mediaRecorder.start();
-        audioChunks = [];
-        mediaRecorder.addEventListener("dataavailable", event => {{
-            audioChunks.push(event.data);
-        }});
-
-        // Chronomètre
-        startTime = Date.now();
-        timerInterval = setInterval(() => {{
-            const elapsedTime = Date.now() - startTime;
-            const minutes = String(Math.floor(elapsedTime / 60000)).padStart(2, '0');
-            const seconds = String(Math.floor((elapsedTime % 60000) / 1000)).padStart(2, '0');
-            document.getElementById("timer").innerText = `${{minutes}}:${{seconds}}`;
-
-            if (elapsedTime >= maxDuration) {{
-                stopRecording();
-            }}
-        }}, 1000);
-
-        mediaRecorder.addEventListener("stop", () => {{
-            clearInterval(timerInterval);
-            cancelAnimationFrame(animationId);
-            const audioBlob = new Blob(audioChunks, {{ type: 'audio/wav' }});
-            const audioUrl = URL.createObjectURL(audioBlob);
-            const downloadLink = document.getElementById("download");
-            downloadLink.href = audioUrl;
-            downloadLink.download = "audio_{student_id}.wav"; // Nom dynamique ici
-            downloadLink.style.display = "block";
-        }});
-    }});
-}}
-
-function stopRecording() {{
-    if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
-}}
-</script>
-
-<button onclick="startRecording()">🎙️ Démarrer</button>
-<button onclick="stopRecording()">⏹️ Arrêter</button>
-<div style="margin-top:10px;font-size:20px;">
-    ⏱️ Durée : <span id="timer">00:00</span> / 08:00
-</div>
-<canvas id="visualizer" width="300" height="100" style="margin-top:10px; border:1px solid #ccc;"></canvas>
-<a id="download" style="display:none; margin-top:10px">📥 Télécharger l'enregistrement</a>
-"""
-
-st.components.v1.html(html_code, height=350)
-
-
-# 📤 Upload audio manuel
-audio_file = st.file_uploader("📤 Charger un fichier audio (.wav, .mp3, .m4a)", type=["wav", "mp3", "m4a"])
-if audio_file and client and st.button("🔈 Transcrire avec Whisper"):
-    ext = os.path.splitext(audio_file.name)[1]
-    save_path = os.path.join(AUDIO_DIR, f"{student_id}{ext}")
-    with open(save_path, "wb") as f_out:
-        f_out.write(audio_file.read())
-    try:
-        with open(save_path, "rb") as f:
-            transcript = client.audio.transcriptions.create(
-                model="whisper-1",
-                file=f,
-                language="fr"
-            )
-        st.session_state.transcript = transcript.text
-        st.success("✅ Transcription réussie")
-    except Exception as e:
-        st.error(f"Erreur Whisper : {e}")
-
-if st.session_state.transcript:
-    st.text_area("📝 Transcription", value=st.session_state.transcript, height=200)
-
 # GPT-4 : évaluation
 if st.button("🧠 Évaluation"):
     if not (clinical_text and rubric and st.session_state.transcript):
@@ -254,19 +108,45 @@ Ta tâche est d'évaluer la réponse de l'étudiant selon les critères suivants
 3. Évalue la qualité de la synthèse (0 à 1) et de la prise en charge (0 à 1).
 4. Donne un score final sur 20.
 5. Rédige un commentaire global (maximum 5 lignes).
-6. Etre précis et attendre les mots clefs
 N'invente jamais d'informations absentes de la réponse de l'étudiant.
+
+Voici un exemple de format JSON strict que tu dois retourner :
+```json
+{{
+  "notes": [
+    {{
+      "critère": "Recueille les antécédents",
+      "score": 1,
+      "justification": "L'étudiant a bien mentionné les antécédents familiaux et médicaux."
+    }},
+    {{
+      "critère": "Recherche les signes fonctionnels",
+      "score": 0,
+      "justification": "L'étudiant n’a pas évoqué les symptômes urinaires."
+    }}
+  ],
+  "synthese": 0.5,
+  "prise_en_charge": 1.0,
+  "note_finale": 16.5,
+  "commentaire": "Bonne réponse globale mais quelques oublis notables."
+}}
+```
+NE RAJOUTE AUCUN AUTRE TEXTE. Retourne uniquement ce JSON.
 """
         try:
             response = client.chat.completions.create(
                 model="gpt-4",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
-                max_tokens=1000
+                max_tokens=1500
             )
 
-            result_json = response.choices[0].message.content.strip()
-            result = json.loads(result_json)
+            result_raw = response.choices[0].message.content.strip()
+            json_match = re.search(r"\{.*\}", result_raw, re.DOTALL)
+            if json_match:
+                result = json.loads(json_match.group())
+            else:
+                raise ValueError("Aucun JSON valide détecté dans la réponse.")
 
             st.subheader(f"🧠 Note finale : {result['note_finale']} / 20")
             st.markdown("### 🧩 Détail des critères évalués par l'IA")
@@ -287,40 +167,5 @@ N'invente jamais d'informations absentes de la réponse de l'étudiant.
                 conn.commit()
                 st.success("✅ Résultats enregistrés avec succès dans SQLite !")
 
-        except json.JSONDecodeError:
-            st.error("❌ GPT-4 n'a pas retourné un JSON valide. Réessaie.")
         except Exception as e:
-            st.error(f"❌ Erreur GPT-4 : {e}")
-
-# Résultat IA + sauvegarde
-if st.session_state.result_json:
-    try:
-        result = json.loads(st.session_state.result_json)
-        st.subheader("📊 Résultat IA :")
-        st.json(result)
-
-        eval1 = st.number_input("Note évaluateur 1 (sur 20)", min_value=0.0, max_value=20.0, step=0.25)
-        eval2 = st.number_input("Note évaluateur 2 (sur 20)", min_value=0.0, max_value=20.0, step=0.25)
-
-        if st.button("💾 Sauvegarder en base"):
-            c.execute("INSERT OR IGNORE INTO etudiants VALUES (?, ?)", (student_id, datetime.now().isoformat()))
-            for note in result["notes"]:
-                c.execute("""
-                    INSERT INTO evaluations VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    student_id, note["critère"], note["score"], note["justification"],
-                    result.get("synthese", 0), result.get("prise_en_charge", 0),
-                    result.get("note_finale", 0), result.get("commentaire", "")
-                ))
-            c.execute("INSERT OR REPLACE INTO evaluateurs VALUES (?, ?, ?)", (student_id, eval1, eval2))
-            conn.commit()
-            st.success("✅ Résultats sauvegardés dans la base SQLite.")
-    except Exception as e:
-        st.error(f"Erreur de parsing JSON : {e}")
-
-# Historique
-st.markdown("### 🧾 Historique des évaluations")
-if st.checkbox("📂 Afficher le tableau des résultats"):
-    df_eval = pd.read_sql_query("SELECT * FROM evaluations", conn)
-    st.dataframe(df_eval)
-    st.download_button("⬇️ Télécharger les évaluations", df_eval.to_csv(index=False), file_name="evaluations.csv")
+            st.error(f"❌ Erreur GPT-4 ou parsing : {e}")
