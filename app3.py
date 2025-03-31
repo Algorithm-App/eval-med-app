@@ -90,19 +90,30 @@ if clinical_file:
         st.code(clinical_text)
 
 # Grille d’évaluation
-rubric_docx = st.file_uploader("📋 Charger la grille d’évaluation (.docx)", type=["docx"])
+rubric_json = st.file_uploader("📋 Charger la grille d'évaluation (.json)", type=["json"])
+
 rubric = []
-if rubric_docx:
-    doc = Document(rubric_docx)
-    for para in doc.paragraphs:
-        text = para.text.strip()
-        if text and any(char.isdigit() for char in text[:2]):
-            parts = text.split(" ", 1)
-            if len(parts) == 2:
-                points = 2 if "2" in parts[0] else 1
-                rubric.append({"critère": parts[1], "points": points})
-    with st.expander("📊 Grille d’évaluation"):
-        st.json(rubric)
+if rubric_json is not None:
+    try:
+        rubric_data = json.load(rubric_json)
+        rubric = rubric_data.get("grille_observation", [])
+        synthese_options = rubric_data.get("synthese", {})
+        prise_en_charge_options = rubric_data.get("prise_en_charge", {})
+
+        with st.expander("📊 Grille d'évaluation (critères)", expanded=False):
+            st.json(rubric)
+
+        with st.expander("📚 Barème - Synthèse & Prise en charge", expanded=False):
+            st.markdown("### Synthèse")
+            for k, v in synthese_options.items():
+                st.markdown(f"- **{k}** : {v}")
+            st.markdown("### Prise en charge")
+            for k, v in prise_en_charge_options.items():
+                st.markdown(f"- **{k}** : {v}")
+
+    except Exception as e:
+        st.error(f"Erreur lors du chargement du fichier JSON : {e}")
+
 
 # 🎙️ Enregistrement audio (HTML5)
 
