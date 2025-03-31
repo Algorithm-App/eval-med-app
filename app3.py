@@ -284,7 +284,14 @@ if st.button("🧠 Évaluer avec GPT-4 (JSON)"):
             result = json.loads(result_json)
 
             # Afficher la note finale de l'IA
+            # Afficher la note finale de l'IA
             st.subheader(f"🧠 Note finale GPT-4 : {result['note_finale']} / 20")
+
+            # Détails de l’évaluation par critère
+            st.markdown("### 🧩 Détail des critères évalués par l'IA")
+            for critere in result["notes"]:
+                st.markdown(f"- **{critere['critère']}** — Score : `{critere['score']}`")
+                st.markdown(f"  > _Justification_ : {critere['justification']}")
 
             # Stockage temporaire dans session_state
             st.session_state['note_ia'] = result['note_finale']
