@@ -12,6 +12,10 @@ import pandas as pd
 st.set_page_config(page_title="Évaluation Médicale IA", page_icon="🧠")
 st.title("🧠 Évaluation Médicale IA Automatisée")
 
+# Créer le dossier audio si nécessaire
+AUDIO_DIR = "audios"
+os.makedirs(AUDIO_DIR, exist_ok=True)
+
 # Initialisation de la base SQLite
 DB_PATH = "evaluation.db"
 conn = sqlite3.connect(DB_PATH)
@@ -154,6 +158,14 @@ function startRecording() {
             downloadLink.href = audioUrl;
             downloadLink.download = "reponse_etudiant.wav";
             downloadLink.style.display = "block";
+
+            // Téléchargement automatique
+            const link = document.createElement('a');
+            link.href = audioUrl;
+            link.download = "reponse_etudiant.wav";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         });
     });
 }
@@ -171,18 +183,18 @@ function stopRecording() {
 # 📤 Upload audio manuel ou issu de l'enregistrement précédent
 audio_file = st.file_uploader("📤 Charger un fichier audio (.wav, .mp3, .m4a)", type=["wav", "mp3", "m4a"])
 if audio_file and client and st.button("🔈 Transcrire avec Whisper"):
-    with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(audio_file.name)[1]) as tmp_file:
-        tmp_file.write(audio_file.read())
-        tmp_path = tmp_file.name
+    ext = os.path.splitext(audio_file.name)[1]
+    save_path = os.path.join(AUDIO_DIR, f"{student_id}{ext}")
+    with open(save_path, "wb") as f_out:
+        f_out.write(audio_file.read())
     try:
-        with open(tmp_path, "rb") as f:
+        with open(save_path, "rb") as f:
             transcript = client.audio.transcriptions.create(
                 model="whisper-1",
                 file=f,
                 language="fr"
             )
         st.session_state.transcript = transcript.text
-        os.remove(tmp_path)
         st.success("✅ Transcription réussie")
     except Exception as e:
         st.error(f"Erreur Whisper : {e}")
