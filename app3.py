@@ -46,7 +46,7 @@ with st.sidebar:
 
 with st.sidebar:
     st.markdown("---")
-    st.header("⚠️ Administration de la base SQLite")
+    st.header("Administration de la base SQLite")
 
     if st.button("🗑️ Effacer toutes les données"):
         st.session_state["confirm_delete"] = True
@@ -106,7 +106,7 @@ if rubric_docx:
 
 # 🎙️ Enregistrement audio (HTML5)
 
-st.markdown("## 🎤 Enregistrement audio (max 8 min)")
+st.markdown("## Enregistrement audio (max 8 min)")
 
 # Injection de l'ID étudiant directement dans le HTML
 html_code = f"""
