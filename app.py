@@ -95,22 +95,29 @@ function stopRecording() {
 
 # Transcription
 if audio_file and client and st.button("🔈 Transcrire avec Whisper"):
-    with st.spinner("Transcription en cours..."):
-        with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-            tmp_file.write(audio_file.read())
-            tmp_path = tmp_file.name
-        try:
-            with open(tmp_path, "rb") as af:
-                transcript = client.audio.transcriptions.create(
-                    model="whisper-1",
-                    file=af,
-                    language="fr"
-                )
-            st.session_state.transcript = transcript.text
-            os.remove(tmp_path)
-            st.success("✅ Transcription réussie")
-        except Exception as e:
-            st.error(f"Erreur : {e}")
+    if not audio_file.name.endswith(('.mp3', '.wav', '.m4a', '.flac', '.ogg')):
+        st.error("❌ Format non supporté. Merci de charger un .mp3, .wav, ou .m4a valide.")
+    else:
+        with st.spinner("Transcription en cours..."):
+            # 🔁 Sauvegarder le fichier dans un vrai fichier temporaire AVEC extension correcte
+            ext = os.path.splitext(audio_file.name)[1]
+            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp_file:
+                tmp_file.write(audio_file.read())
+                tmp_path = tmp_file.name
+            
+            try:
+                with open(tmp_path, "rb") as f:
+                    transcript = client.audio.transcriptions.create(
+                        model="whisper-1",
+                        file=f,
+                        language="fr"
+                    )
+                st.session_state.transcript = transcript.text
+                os.remove(tmp_path)
+                st.success("✅ Transcription réussie")
+            except Exception as e:
+                st.error(f"❌ Erreur : {e}")
+
 
 if st.session_state.transcript:
     st.text_area("📝 Texte transcrit :", value=st.session_state.transcript, height=200)
