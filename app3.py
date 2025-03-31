@@ -57,7 +57,7 @@ with st.sidebar:
                 conn.commit()
                 st.success("✅ Toutes les données ont été effacées avec succès.")
                 st.session_state["confirm_delete"] = False  # réinitialisation
-                st.experimental_rerun()
+                st.rerun()
             except Exception as e:
                 st.error(f"❌ Erreur lors de l'effacement : {e}")
 
