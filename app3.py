@@ -105,7 +105,8 @@ if rubric_docx:
         st.json(rubric)
 
 # 🎙️ Enregistrement audio (HTML5)
-st.markdown("## 🎤 Enregistrement de la réponse de l’étudiant")
+st.markdown("## 🎤 Enregistrement audio avec Chronomètre")
+
 st.components.v1.html("""
 <script>
 let mediaRecorder;
@@ -114,6 +115,8 @@ let audioContext;
 let analyser;
 let dataArray;
 let animationId;
+let timerInterval;
+let startTime;
 
 function startRecording() {
     navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
@@ -146,13 +149,25 @@ function startRecording() {
         }
 
         draw();
+
         mediaRecorder = new MediaRecorder(stream);
         mediaRecorder.start();
         audioChunks = [];
         mediaRecorder.addEventListener("dataavailable", event => {
             audioChunks.push(event.data);
         });
+
+        // Démarrer le chronomètre
+        startTime = Date.now();
+        timerInterval = setInterval(() => {
+            const elapsedTime = Date.now() - startTime;
+            const minutes = String(Math.floor(elapsedTime / 60000)).padStart(2, '0');
+            const seconds = String(Math.floor((elapsedTime % 60000) / 1000)).padStart(2, '0');
+            document.getElementById("timer").innerText = `${minutes}:${seconds}`;
+        }, 1000);
+
         mediaRecorder.addEventListener("stop", () => {
+            clearInterval(timerInterval);
             cancelAnimationFrame(animationId);
             const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
             const audioUrl = URL.createObjectURL(audioBlob);
@@ -168,11 +183,16 @@ function stopRecording() {
     if (mediaRecorder) mediaRecorder.stop();
 }
 </script>
+
 <button onclick="startRecording()">🎙️ Démarrer</button>
 <button onclick="stopRecording()">⏹️ Arrêter</button>
+<div style="margin-top:10px;font-size:20px;">
+    ⏱️ Durée : <span id="timer">00:00</span>
+</div>
 <canvas id="visualizer" width="300" height="100" style="margin-top:10px; border:1px solid #ccc;"></canvas>
 <a id="download" style="display:none; margin-top:10px">📥 Télécharger l'enregistrement</a>
-""", height=280)
+""", height=320)
+
 
 # 📤 Upload audio manuel
 audio_file = st.file_uploader("📤 Charger un fichier audio (.wav, .mp3, .m4a)", type=["wav", "mp3", "m4a"])
