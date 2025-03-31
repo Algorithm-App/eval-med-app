@@ -40,6 +40,25 @@ with st.sidebar:
                 del st.session_state[key]
         st.success("✅ Session réinitialisée. Saisis un nouvel étudiant.")
 
+with st.sidebar:
+    st.markdown("---")
+    st.header("⚠️ Administration de la base SQLite")
+
+    if st.button("🗑️ Effacer toutes les données"):
+        confirm = st.checkbox("Je confirme vouloir effacer toutes les données définitivement.")
+        if confirm:
+            try:
+                c.execute("DELETE FROM evaluations")
+                c.execute("DELETE FROM etudiants")
+                c.execute("DELETE FROM evaluateurs")
+                conn.commit()
+                st.success("✅ Toutes les données ont été effacées avec succès.")
+            except Exception as e:
+                st.error(f"❌ Erreur lors de l'effacement : {e}")
+        else:
+            st.warning("❗ Veuillez confirmer la suppression des données.")
+
+
 # OpenAI client
 client = None
 if openai_api_key and openai_org and openai_project:
