@@ -1,5 +1,5 @@
 streamlit
-streamlit-webrtc==0.53.10
+streamlit-webrtc==0.53.10.post1
 openai
 python-docx
 scipy
