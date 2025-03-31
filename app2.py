@@ -165,8 +165,8 @@ if audio_file and client and st.button("🔈 Transcrire avec Whisper"):
 if st.session_state.transcript:
     st.text_area("📝 Texte transcrit :", value=st.session_state.transcript, height=200)
 
-# Évaluation GPT-4
-if st.button("🧠 Évaluer la réponse avec GPT-4"):
+# Évaluation 
+if st.button("🧠 Évaluer la réponse"):
     if not (clinical_text and rubric and st.session_state.transcript):
         st.warning("Merci de remplir tous les champs requis avant l'évaluation.")
     elif not client:
@@ -186,7 +186,7 @@ Ta tâche :
 4. Donne un score final sur 20.
 5. Rédige un commentaire global (max 5 lignes).
 """
-        with st.spinner("GPT-4 réfléchit..."):
+        with st.spinner("Réflexion..."):
             try:
                 response = client.chat.completions.create(
                     model="gpt-4",
