@@ -25,34 +25,12 @@ c.execute('''CREATE TABLE IF NOT EXISTS evaluations (id_etudiant TEXT, critere T
 c.execute('''CREATE TABLE IF NOT EXISTS evaluateurs (id_etudiant TEXT, eval1 REAL, eval2 REAL)''')
 conn.commit()
 
-# Barre latérale : identifiants et prompt
+# Barre latérale : identifiants
 with st.sidebar:
     st.header("🔐 Identifiants OpenAI")
     openai_api_key = st.text_input("Clé API OpenAI", type="password")
     openai_org = st.text_input("ID Organisation", help="ex: org-xxxxx")
     openai_project = st.text_input("ID Projet", help="ex: proj_xxxx")
-
-    st.markdown("---")
-    st.subheader("🧠 Prompt GPT-4 personnalisé")
-    default_prompt_template = '''
-Tu es un examinateur médical. Voici :
-- Cas clinique : {cas_clinique}
-- Réponse de l’étudiant : {reponse}
-- Grille d’évaluation : {grille}
-
-Retourne uniquement un JSON structuré comme ceci :
-{{
-  "notes": [{{"critère": "...", "score": 1, "justification": "..."}}],
-  "synthese": 0.5,
-  "prise_en_charge": 1.0,
-  "note_finale": 19,
-  "commentaire": "Très bonne réponse."
-}}
-
-Ne commente rien. Ne donne que le JSON.
-'''.strip()
-    prompt_template = st.text_area("📝 Modèle de prompt GPT-4", value=default_prompt_template, height=300)
-
     if st.button("🧹 Réinitialiser la session"):
         for key in ["transcript", "result_json", "student_id"]:
             if key in st.session_state:
@@ -193,11 +171,23 @@ if st.button("🧠 Évaluer avec GPT-4 (JSON)"):
     if not (clinical_text and rubric and st.session_state.transcript):
         st.warning("⚠️ Remplis tous les champs nécessaires.")
     else:
-        prompt = prompt_template.format(
-            cas_clinique=clinical_text,
-            reponse=st.session_state.transcript,
-            grille=json.dumps(rubric, ensure_ascii=False)
-        )
+        prompt = f"""
+Tu es un examinateur médical. Voici :
+- Cas clinique : {clinical_text}
+- Réponse de l’étudiant : {st.session_state.transcript}
+- Grille d’évaluation : {json.dumps(rubric, ensure_ascii=False)}
+
+Retourne uniquement un JSON structuré comme ceci :
+{{
+  "notes": [{{"critère": "...", "score": 1, "justification": "..."}}],
+  "synthese": 0.5,
+  "prise_en_charge": 1.0,
+  "note_finale": 19,
+  "commentaire": "Très bonne réponse."
+}}
+
+Ne commente rien. Ne donne que le JSON.
+"""
         try:
             response = client.chat.completions.create(
                 model="gpt-4",
