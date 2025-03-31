@@ -3,9 +3,12 @@ import json
 import tempfile
 import os
 from docx import Document
-from streamlit.components.v1 import html
 from datetime import datetime
 from openai import OpenAI
+from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, ClientSettings
+import av
+import numpy as np
+import queue
 
 # Configuration page
 st.set_page_config(page_title="Évaluation Médicale IA", page_icon="🧠")
@@ -56,69 +59,52 @@ if rubric_docx is not None:
     with st.expander("📊 Grille d'évaluation", expanded=False):
         st.json(rubric)
 
-# Audio étudiant
-st.subheader("🎙️ Réponse orale de l'étudiant")
-audio_file = st.file_uploader("📤 Charger un fichier audio (.mp3, .wav, .m4a)", type=["mp3", "wav", "m4a"])
+# Enregistrement avec WebRTC
+st.subheader("🎙️ Réponse orale de l'étudiant - Enregistrement direct")
+audio_queue = queue.Queue()
 
-# Enregistrement HTML5
-st.markdown("### 🎤 Enregistrement direct (navigateur)")
-html('''
-<script>
-let mediaRecorder;
-let audioChunks = [];
-function startRecording() {
-  navigator.mediaDevices.getUserMedia({ audio: true })
-    .then(stream => {
-      mediaRecorder = new MediaRecorder(stream);
-      mediaRecorder.start();
-      mediaRecorder.addEventListener("dataavailable", event => {
-        audioChunks.push(event.data);
-      });
-      mediaRecorder.addEventListener("stop", () => {
-        const audioBlob = new Blob(audioChunks);
-        const audioUrl = URL.createObjectURL(audioBlob);
-        const downloadLink = document.getElementById("download");
-        downloadLink.href = audioUrl;
-        downloadLink.download = "reponse_etudiant.wav";
-        downloadLink.style.display = "block";
-      });
-    });
-}
-function stopRecording() {
-  mediaRecorder.stop();
-}
-</script>
-<button onclick="startRecording()">🎙️ Démarrer l'enregistrement</button>
-<button onclick="stopRecording()">⏹️ Arrêter l'enregistrement</button>
-<a id="download" style="display:none; margin-top:10px">📥 Télécharger l'enregistrement</a>
-''', height=200)
+class AudioProcessor(AudioProcessorBase):
+    def __init__(self):
+        self.recorded_frames = []
 
-# Transcription
-if audio_file and client and st.button("🔈 Transcrire avec Whisper"):
-    if not audio_file.name.endswith(('.mp3', '.wav', '.m4a', '.flac', '.ogg')):
-        st.error("❌ Format non supporté. Merci de charger un .mp3, .wav, ou .m4a valide.")
-    else:
-        with st.spinner("Transcription en cours..."):
-            # 🔁 Sauvegarder le fichier dans un vrai fichier temporaire AVEC extension correcte
-            ext = os.path.splitext(audio_file.name)[1]
-            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp_file:
-                tmp_file.write(audio_file.read())
-                tmp_path = tmp_file.name
-            
-            try:
-                with open(tmp_path, "rb") as f:
-                    transcript = client.audio.transcriptions.create(
-                        model="whisper-1",
-                        file=f,
-                        language="fr"
-                    )
-                st.session_state.transcript = transcript.text
-                os.remove(tmp_path)
-                st.success("✅ Transcription réussie")
-            except Exception as e:
-                st.error(f"❌ Erreur : {e}")
+    def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
+        pcm = frame.to_ndarray()
+        self.recorded_frames.append(pcm)
+        return frame
 
+    def get_audio(self):
+        return np.concatenate(self.recorded_frames, axis=1).flatten()
 
+ctx = webrtc_streamer(
+    key="key",
+    mode="sendonly",
+    in_audio=True,
+    audio_processor_factory=AudioProcessor,
+    client_settings=ClientSettings(
+        media_stream_constraints={"audio": True, "video": False},
+        rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
+    ),
+)
+
+# Traitement audio enregistré
+if ctx.audio_processor and st.button("🔈 Transcrire l'enregistrement avec Whisper"):
+    pcm_data = ctx.audio_processor.get_audio()
+    tmp_wav_path = tempfile.mktemp(suffix=".wav")
+    from scipy.io.wavfile import write
+    write(tmp_wav_path, 48000, pcm_data)
+    try:
+        with open(tmp_wav_path, "rb") as f:
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=f,
+                language="fr"
+            )
+        st.session_state.transcript = transcript.text
+        st.success("✅ Transcription réussie")
+    except Exception as e:
+        st.error(f"❌ Erreur : {e}")
+
+# Affichage transcription si disponible
 if st.session_state.transcript:
     st.text_area("📝 Texte transcrit :", value=st.session_state.transcript, height=200)
 
