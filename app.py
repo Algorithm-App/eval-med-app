@@ -6,7 +6,6 @@ from docx import Document
 from datetime import datetime
 from openai import OpenAI
 from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, WebRtcMode
-from streamlit_webrtc import RTCConfiguration, MediaStreamConstraints
 import av
 import numpy as np
 import queue
@@ -61,46 +60,68 @@ if rubric_docx is not None:
     with st.expander("📊 Grille d'évaluation", expanded=False):
         st.json(rubric)
 
-# Enregistrement avec WebRTC
-st.subheader("🎙️ Réponse orale de l'étudiant - Enregistrement direct")
+# --- 🎙️ Enregistrement audio direct avec visualisation ---
+st.subheader("🎤 Enregistrement audio (WebRTC) avec visualisation")
 audio_queue = queue.Queue()
 
 class AudioProcessor(AudioProcessorBase):
     def __init__(self):
         self.recorded_frames = []
+        self.level = 0
 
     def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
         pcm = frame.to_ndarray()
+        volume_norm = np.linalg.norm(pcm) / (pcm.size + 1e-8)
+        self.level = min(volume_norm * 10, 1.0)
         self.recorded_frames.append(pcm)
         return frame
 
     def get_audio(self):
         return np.concatenate(self.recorded_frames, axis=1).flatten()
 
-rtc_config = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
-
 ctx = webrtc_streamer(
-    key="eval-audio",
+    key="recorder",
     mode=WebRtcMode.SENDONLY,
     audio_receiver_size=1024,
-    rtc_configuration=rtc_config,
-    media_stream_constraints=MediaStreamConstraints(audio=True, video=False),
     audio_processor_factory=AudioProcessor
 )
 
-# Traitement audio enregistré
-if ctx.audio_processor and st.button("🔈 Transcrire l'enregistrement avec Whisper"):
-    pcm_data = ctx.audio_processor.get_audio()
-    tmp_wav_path = tempfile.mktemp(suffix=".wav")
-    write(tmp_wav_path, 48000, pcm_data)
+if ctx.audio_processor:
+    st.progress(ctx.audio_processor.level)
+    if st.button("🔈 Transcrire l'enregistrement"):
+        pcm_data = ctx.audio_processor.get_audio()
+        tmp_wav_path = tempfile.mktemp(suffix=".wav")
+        write(tmp_wav_path, 48000, pcm_data)
+        try:
+            with open(tmp_wav_path, "rb") as f:
+                transcript = client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=f,
+                    language="fr"
+                )
+            st.session_state.transcript = transcript.text
+            st.success("✅ Transcription réussie")
+        except Exception as e:
+            st.error(f"❌ Erreur : {e}")
+
+# --- 📤 Chargement de fichier audio ---
+st.subheader("📥 Ou bien charger un fichier audio existant (.mp3, .wav, .m4a)")
+audio_file = st.file_uploader("Fichier audio", type=["mp3", "wav", "m4a"])
+
+if audio_file and client and st.button("🔈 Transcrire le fichier audio"):
+    ext = os.path.splitext(audio_file.name)[1]
+    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp_file:
+        tmp_file.write(audio_file.read())
+        tmp_path = tmp_file.name
     try:
-        with open(tmp_wav_path, "rb") as f:
+        with open(tmp_path, "rb") as f:
             transcript = client.audio.transcriptions.create(
                 model="whisper-1",
                 file=f,
                 language="fr"
             )
         st.session_state.transcript = transcript.text
+        os.remove(tmp_path)
         st.success("✅ Transcription réussie")
     except Exception as e:
         st.error(f"❌ Erreur : {e}")
