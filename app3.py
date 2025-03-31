@@ -197,7 +197,7 @@ if st.session_state.transcript:
     st.text_area("📝 Transcription", value=st.session_state.transcript, height=200)
 
 # GPT-4 : évaluation
-if st.button("🧠 Évaluer"):
+if st.button("🧠 Évaluer avec GPT-4 (JSON)"):
     if not (clinical_text and rubric and st.session_state.transcript):
         st.warning("⚠️ Remplis tous les champs nécessaires.")
     else:
@@ -240,19 +240,33 @@ if st.button("🧠 Évaluer"):
                 max_tokens=1000
             )
 
-            # Vérification stricte du JSON
             result_json = response.choices[0].message.content.strip()
             result = json.loads(result_json)
 
-            # Si la vérification passe, sauvegarde dans session_state
-            st.session_state.result_json = result_json
-            st.success("✅ Évaluation réussie")
+            # Afficher la note finale de l'IA
+            st.subheader(f"🧠 Note finale GPT-4 : {result['note_finale']} / 20")
+
+            # Stockage temporaire dans session_state
+            st.session_state['note_ia'] = result['note_finale']
+
+            # Champs pour notes évaluateurs
+            eval1 = st.number_input("Note évaluateur 1 (sur 20)", 0.0, 20.0, step=0.25)
+            eval2 = st.number_input("Note évaluateur 2 (sur 20)", 0.0, 20.0, step=0.25)
+
+            # Bouton de sauvegarde en SQLite
+            if st.button("💾 Sauvegarder les résultats"):
+                c.execute("""
+                    INSERT OR REPLACE INTO evaluations (id_etudiant, note_ia, eval1, eval2)
+                    VALUES (?, ?, ?, ?)
+                """, (student_id, result['note_finale'], eval1, eval2))
+                conn.commit()
+                st.success("✅ Résultats enregistrés avec succès dans SQLite !")
 
         except json.JSONDecodeError:
             st.error("❌ GPT-4 n'a pas retourné un JSON valide. Réessaie.")
         except Exception as e:
             st.error(f"❌ Erreur GPT-4 : {e}")
-
+            
 
 # Résultat IA + sauvegarde
 if st.session_state.result_json:
