@@ -5,7 +5,8 @@ import os
 from docx import Document
 from datetime import datetime
 from openai import OpenAI
-from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, ClientSettings
+from streamlit_webrtc import webrtc_streamer, AudioProcessorBase
+from streamlit_webrtc import RTCConfiguration, MediaStreamConstraints
 import av
 import numpy as np
 import queue
@@ -75,16 +76,17 @@ class AudioProcessor(AudioProcessorBase):
     def get_audio(self):
         return np.concatenate(self.recorded_frames, axis=1).flatten()
 
+RTC_CONFIGURATION = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
+
 ctx = webrtc_streamer(
     key="key",
     mode="sendonly",
-    in_audio=True,
-    audio_processor_factory=AudioProcessor,
-    client_settings=ClientSettings(
-        media_stream_constraints={"audio": True, "video": False},
-        rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
-    ),
+    audio_receiver_size=1024,
+    rtc_configuration=RTC_CONFIGURATION,
+    media_stream_constraints=MediaStreamConstraints(audio=True, video=False),
+    audio_processor_factory=AudioProcessor
 )
+
 
 # Traitement audio enregistré
 if ctx.audio_processor and st.button("🔈 Transcrire l'enregistrement avec Whisper"):
