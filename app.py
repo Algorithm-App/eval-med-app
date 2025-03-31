@@ -5,13 +5,12 @@ import os
 from docx import Document
 from datetime import datetime
 from openai import OpenAI
-from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, RTCConfiguration, MediaStreamConstraints
+from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, WebRtcMode
+from streamlit_webrtc import RTCConfiguration, MediaStreamConstraints
 import av
 import numpy as np
 import queue
 from scipy.io.wavfile import write
-from streamlit_webrtc import WebRtcMode
-
 
 # Configuration page
 st.set_page_config(page_title="Évaluation Médicale IA", page_icon="🧠")
@@ -78,13 +77,13 @@ class AudioProcessor(AudioProcessorBase):
     def get_audio(self):
         return np.concatenate(self.recorded_frames, axis=1).flatten()
 
-RTC_CONFIGURATION = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
+rtc_config = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
 
 ctx = webrtc_streamer(
     key="eval-audio",
     mode=WebRtcMode.SENDONLY,
     audio_receiver_size=1024,
-    rtc_configuration=RTC_CONFIGURATION,
+    rtc_configuration=rtc_config,
     media_stream_constraints=MediaStreamConstraints(audio=True, video=False),
     audio_processor_factory=AudioProcessor
 )
