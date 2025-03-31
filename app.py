@@ -57,55 +57,90 @@ if rubric_docx is not None:
     with st.expander("📊 Grille d'évaluation", expanded=False):
         st.json(rubric)
 
-# 🎙️ Enregistrement audio HTML5 (navigateur)
-st.subheader("🎤 Enregistrement direct (navigateur)")
+# 🎙️ Enregistrement HTML5 avec barre de son
+def recorder_html():
+    return """
+    <script>
+    let mediaRecorder;
+    let audioChunks = [];
+    let audioContext;
+    let analyser;
+    let dataArray;
+    let animationId;
 
-st.markdown("""
-<script>
-let mediaRecorder;
-let audioChunks = [];
+    function startRecording() {
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+            audioContext = new AudioContext();
+            const source = audioContext.createMediaStreamSource(stream);
+            analyser = audioContext.createAnalyser();
+            source.connect(analyser);
+            analyser.fftSize = 256;
+            const bufferLength = analyser.frequencyBinCount;
+            dataArray = new Uint8Array(bufferLength);
 
-function startRecording() {
-  navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-    mediaRecorder = new MediaRecorder(stream);
-    mediaRecorder.start();
+            const canvas = document.getElementById("visualizer");
+            const canvasCtx = canvas.getContext("2d");
+            canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
 
-    audioChunks = [];
-    mediaRecorder.addEventListener("dataavailable", event => {
-      audioChunks.push(event.data);
-    });
+            function draw() {
+                animationId = requestAnimationFrame(draw);
+                analyser.getByteFrequencyData(dataArray);
 
-    mediaRecorder.addEventListener("stop", () => {
-      const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const downloadLink = document.getElementById("download");
-      downloadLink.href = audioUrl;
-      downloadLink.download = "reponse_etudiant.wav";
-      downloadLink.style.display = "block";
+                canvasCtx.fillStyle = 'rgb(255, 255, 255)';
+                canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
 
-      const uploadInput = document.getElementById("upload_input");
-      const file = new File([audioBlob], "reponse_etudiant.wav");
-      const dt = new DataTransfer();
-      dt.items.add(file);
-      uploadInput.files = dt.files;
-    });
-  });
-}
+                const barWidth = (canvas.width / bufferLength) * 2.5;
+                let barHeight;
+                let x = 0;
 
-function stopRecording() {
-  if (mediaRecorder) {
-    mediaRecorder.stop();
-  }
-}
-</script>
-<button onclick="startRecording()">🎙️ Démarrer l'enregistrement</button>
-<button onclick="stopRecording()">⏹️ Arrêter</button>
-<a id="download" style="display:none; margin-top:10px">📥 Télécharger l'enregistrement</a>
-<input type="file" id="upload_input" style="display:none" />
-""", unsafe_allow_html=True)
+                for(let i = 0; i < bufferLength; i++) {
+                    barHeight = dataArray[i];
+                    canvasCtx.fillStyle = 'rgb(' + (barHeight+100) + ',50,50)';
+                    canvasCtx.fillRect(x, canvas.height - barHeight/2, barWidth, barHeight/2);
+                    x += barWidth + 1;
+                }
+            }
 
-# 📤 Récupérer le fichier audio uploadé automatiquement ou manuellement
-audio_file = st.file_uploader("📥 Charger ou utiliser l'enregistrement ci-dessus", type=["wav", "mp3", "m4a"])
+            draw();
+
+            mediaRecorder = new MediaRecorder(stream);
+            mediaRecorder.start();
+            audioChunks = [];
+            mediaRecorder.addEventListener("dataavailable", event => {
+                audioChunks.push(event.data);
+            });
+
+            mediaRecorder.addEventListener("stop", () => {
+                cancelAnimationFrame(animationId);
+                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                const audioUrl = URL.createObjectURL(audioBlob);
+                const uploadInput = document.getElementById("upload_input");
+                const file = new File([audioBlob], "reponse_etudiant.wav");
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                uploadInput.files = dt.files;
+                document.getElementById("download").href = audioUrl;
+                document.getElementById("download").style.display = 'block';
+            });
+        });
+    }
+
+    function stopRecording() {
+        if (mediaRecorder) mediaRecorder.stop();
+    }
+    </script>
+    <button onclick="startRecording()">🎙️ Démarrer l'enregistrement</button>
+    <button onclick="stopRecording()">⏹️ Arrêter</button>
+    <br/><canvas id="visualizer" width="300" height="100" style="margin-top:10px; border:1px solid #ccc;"></canvas>
+    <a id="download" style="display:none; margin-top:10px" download="reponse_etudiant.wav">📥 Télécharger</a>
+    <input type="file" id="upload_input" name="audio" style="display:none" />
+    """
+
+st.subheader("🎧 Enregistrement de l'étudiant avec visualisation audio")
+st.components.v1.html(recorder_html(), height=220)
+
+# 📥 Téléverser l'enregistrement manuel ou généré automatiquement
+audio_file = st.file_uploader("📤 Charger l'enregistrement généré ci-dessus ou un autre fichier (.wav, .mp3, .m4a)", type=["wav", "mp3", "m4a"])
 
 if audio_file and client and st.button("🔈 Transcrire avec Whisper"):
     ext = os.path.splitext(audio_file.name)[1]
