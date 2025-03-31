@@ -1,8 +1,8 @@
 import streamlit as st
-import pandas as pd
 import json
 import tempfile
 import os
+import pandas as pd
 from docx import Document
 from datetime import datetime
 from openai import OpenAI
@@ -11,7 +11,7 @@ from scipy.io.wavfile import write
 
 # Configuration page
 st.set_page_config(page_title="Évaluation Médicale IA", page_icon="🧠")
-st.title("Évaluation Médicale IA Automatisée")
+st.title("🧠 Évaluation Médicale IA Automatisée")
 
 # Barre latérale pour les identifiants OpenAI
 with st.sidebar:
@@ -19,12 +19,16 @@ with st.sidebar:
     openai_api_key = st.text_input("Clé API OpenAI", type="password")
     openai_org = st.text_input("ID Organisation", help="ex: org-xxxxx")
     openai_project = st.text_input("ID Projet", help="ex: proj_xxxx")
-
     if st.button("🧹 Réinitialiser la session"):
-        st.session_state.transcript = ""
-        st.session_state.evaluation = ""
-        st.session_state.student_id = ""
-        st.experimental_rerun()
+        st.session_state.reset = True
+
+# Gestion sécurisée du reset après chargement de l'app
+if st.session_state.get("reset"):
+    st.session_state.transcript = ""
+    st.session_state.evaluation = ""
+    st.session_state.student_id = ""
+    st.session_state.reset = False
+    st.experimental_rerun()
 
 client = None
 if openai_api_key and openai_org and openai_project:
@@ -43,7 +47,8 @@ if "student_id" not in st.session_state:
     st.session_state.student_id = ""
 
 # ID étudiant
-student_id = st.text_input("🆔 Identifiant de l'étudiant")
+student_id = st.text_input("🆔 Identifiant de l'étudiant", value=st.session_state.student_id)
+st.session_state.student_id = student_id
 
 # Cas clinique
 clinical_file = st.file_uploader("📄 Charger le cas clinique (.txt)", type=["txt"])
@@ -147,13 +152,13 @@ def recorder_html():
     <input type="file" id="upload_input" name="audio" style="display:none" />
     """
 
-st.subheader("🎧 Enregistrement de l'étudiant")
+st.subheader("🎧 Enregistrement de l'étudiant avec visualisation audio")
 st.components.v1.html(recorder_html(), height=220)
 
 # 📥 Téléverser l'enregistrement manuel ou généré automatiquement
 audio_file = st.file_uploader("📤 Charger l'enregistrement généré ci-dessus ou un autre fichier (.wav, .mp3, .m4a)", type=["wav", "mp3", "m4a"])
 
-if audio_file and client and st.button("Transcription"):
+if audio_file and client and st.button("🔈 Transcrire avec Whisper"):
     ext = os.path.splitext(audio_file.name)[1]
     with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp_file:
         tmp_file.write(audio_file.read())
@@ -174,20 +179,14 @@ if audio_file and client and st.button("Transcription"):
 if st.session_state.transcript:
     st.text_area("📝 Texte transcrit :", value=st.session_state.transcript, height=200)
 
-# Évaluation 
-if st.button("🧠 Évaluer la réponse"):
+# Évaluation GPT-4
+if st.button("🧠 Évaluer la réponse avec GPT-4"):
     if not (clinical_text and rubric and st.session_state.transcript):
         st.warning("Merci de remplir tous les champs requis avant l'évaluation.")
     elif not client:
         st.warning("Veuillez entrer votre clé API OpenAI.")
     else:
         prompt = f"""
-Tu es examinateur médical. Voici :
-- ID étudiant : {student_id}
-- Cas clinique : {clinical_text}
-- Réponse de l'étudiant : {st.session_state.transcript}
-- Grille d'évaluation : {json.dumps(rubric, ensure_ascii=False)}
-
 Tu es un examinateur médical rigoureux. Voici :
 - ID étudiant : {student_id}
 - Cas clinique : {clinical_text}
@@ -202,12 +201,12 @@ Ta tâche est d'évaluer la réponse de l'étudiant selon les critères suivants
 5. Rédige un commentaire global (maximum 5 lignes).
 N'invente jamais d'informations absentes de la réponse de l'étudiant.
 """
-        with st.spinner("Réflexion..."):
+        with st.spinner("GPT-4 réfléchit..."):
             try:
                 response = client.chat.completions.create(
                     model="gpt-4",
                     messages=[{"role": "user", "content": prompt}],
-                    temperature=0.3
+                    temperature=0.0
                 )
                 st.session_state.evaluation = response.choices[0].message.content
                 st.success("✅ Évaluation terminée")
