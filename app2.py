@@ -38,6 +38,8 @@ if "transcript" not in st.session_state:
     st.session_state.transcript = ""
 if "evaluation" not in st.session_state:
     st.session_state.evaluation = ""
+if "student_id" not in st.session_state:
+    st.session_state.student_id = ""
 
 # ID étudiant
 student_id = st.text_input("🆔 Identifiant de l'étudiant")
@@ -185,12 +187,19 @@ Tu es examinateur médical. Voici :
 - Réponse de l'étudiant : {st.session_state.transcript}
 - Grille d'évaluation : {json.dumps(rubric, ensure_ascii=False)}
 
-Ta tâche :
-1. Évalue chaque critère individuellement avec justification.
+Tu es un examinateur médical rigoureux. Voici :
+- ID étudiant : {student_id}
+- Cas clinique : {clinical_text}
+- Réponse de l'étudiant : {st.session_state.transcript}
+- Grille d'évaluation : {json.dumps(rubric, ensure_ascii=False)}
+
+Ta tâche est d'évaluer la réponse de l'étudiant selon les critères suivants :
+1. Évalue chaque critère individuellement avec justification sans inventer de données.
 2. Donne un score total (sur 18).
 3. Évalue la qualité de la synthèse (0 à 1) et de la prise en charge (0 à 1).
 4. Donne un score final sur 20.
-5. Rédige un commentaire global (max 5 lignes).
+5. Rédige un commentaire global (maximum 5 lignes).
+N'invente jamais d'informations absentes de la réponse de l'étudiant.
 """
         with st.spinner("Réflexion..."):
             try:
@@ -213,8 +222,23 @@ if st.session_state.evaluation:
     note_eval1 = st.text_input("✏️ Note de l'évaluateur 1", help="Sur 20")
     note_eval2 = st.text_input("✏️ Note de l'évaluateur 2", help="Sur 20")
 
-    if st.download_button("⬇️ Télécharger le résultat (CSV)",
-                          data=f"id,date,transcription,evaluation\n{student_id},{datetime.now().isoformat()},{st.session_state.transcript},{st.session_state.evaluation}",
+    row = {
+        "id": student_id,
+        "date": datetime.now().isoformat(),
+        "transcription": st.session_state.transcript,
+        "evaluation": st.session_state.evaluation,
+        "note_eval1": note_eval1,
+        "note_eval2": note_eval2
+    }
+    df = pd.DataFrame([row])
+
+    if not os.path.exists("resultats_etudiants.csv"):
+        df.to_csv("resultats_etudiants.csv", index=False)
+    else:
+        df.to_csv("resultats_etudiants.csv", mode="a", header=False, index=False)
+
+    if st.download_button("⬇️ Télécharger le résultat (CSV individuel)",
+                          data=df.to_csv(index=False),
                           file_name=f"Evaluation_{student_id}.csv",
                           mime="text/csv"):
         st.success("Export CSV généré ✅")
