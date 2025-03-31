@@ -167,53 +167,62 @@ if st.session_state.transcript:
     st.text_area("📝 Transcription", value=st.session_state.transcript, height=200)
 
 # GPT-4 : évaluation
-if st.button("🧠 Évaluer avec GPT-4 (JSON)"):
+if st.button("🧠 Évaluer"):
     if not (clinical_text and rubric and st.session_state.transcript):
         st.warning("⚠️ Remplis tous les champs nécessaires.")
     else:
         prompt = f"""
-Tu es un examinateur médical rigoureux et impartial.
+        Tu es un examinateur médical rigoureux et impartial.
 
-Voici les éléments à considérer :
-- ID étudiant : {student_id}
-- Cas clinique : {clinical_text}
-- Réponse de l'étudiant : {st.session_state.transcript}
-- Grille d'évaluation : {json.dumps(rubric, ensure_ascii=False)}
+        Voici les éléments à considérer :
+        - ID étudiant : {student_id}
+        - Cas clinique : {clinical_text}
+        - Réponse de l'étudiant : {st.session_state.transcript}
+        - Grille d'évaluation : {json.dumps(rubric, ensure_ascii=False)}
 
-Ta mission est d'évaluer la réponse orale de l'étudiant selon les règles suivantes :
+        Ta mission est d'évaluer la réponse orale de l'étudiant selon les règles suivantes :
 
-1. Pour chaque critère de la grille, indique s'il est observé ou non, et justifie ta décision en t'appuyant uniquement sur les propos de l'étudiant.
-2. Calcule le score total sur 18 points selon la grille fournie.
-3. Attribue une note de synthèse (sur 1 point) et une note de prise en charge (sur 1 point).
-4. Calcule une note finale sur 20.
-5. Fournis un commentaire global (5 lignes maximum) justifiant la note finale.
+        1. Pour chaque critère de la grille, indique clairement s'il est observé (score positif) ou non observé (score nul), en justifiant uniquement à partir des propos précis de l'étudiant.
+        2. Calcule le score total sur 18 points selon la grille fournie.
+        3. Attribue une note de synthèse (0 à 1) et une note de prise en charge (0 à 1).
+        4. Calcule une note finale sur 20.
+        5. Fournis un commentaire global justifiant la note finale (maximum 5 lignes).
 
-⚠️ Ne jamais inventer d'informations absentes de la réponse de l'étudiant. Si un élément n’est pas clairement mentionné, considère qu’il n’est pas présent.
-Retourne un texte structuré, concis, et professionnel.
-"""
+        ⚠️ N'invente aucune information absente de la réponse de l'étudiant. Si une information n'est pas explicitement mentionnée, considère-la comme absente.
 
-Retourne uniquement un JSON structuré comme ceci :
-{{
-  "notes": [{{"critère": "...", "score": 1, "justification": "..."}}],
-  "synthese": 0.5,
-  "prise_en_charge": 1.0,
-  "note_finale": 19,
-  "commentaire": "Très bonne réponse."
-}}
+        Retourne STRICTEMENT et EXCLUSIVEMENT un JSON conforme à ce format :
+        {{
+          "notes": [{{"critère": "...", "score": 1, "justification": "..."}}],
+          "synthese": 0.5,
+          "prise_en_charge": 1.0,
+          "note_finale": 19,
+          "commentaire": "Très bonne réponse."
+        }}
 
-Ne commente rien. Ne donne que le JSON.
-"""
+        Aucun texte supplémentaire hors du JSON ne doit être ajouté.
+        """
+
         try:
             response = client.chat.completions.create(
                 model="gpt-4",
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.0
+                temperature=0.0,
+                max_tokens=1000
             )
-            result_json = response.choices[0].message.content
+
+            # Vérification stricte du JSON
+            result_json = response.choices[0].message.content.strip()
+            result = json.loads(result_json)
+
+            # Si la vérification passe, sauvegarde dans session_state
             st.session_state.result_json = result_json
             st.success("✅ Évaluation réussie")
+
+        except json.JSONDecodeError:
+            st.error("❌ GPT-4 n'a pas retourné un JSON valide. Réessaie.")
         except Exception as e:
-            st.error(f"Erreur GPT-4 : {e}")
+            st.error(f"❌ Erreur GPT-4 : {e}")
+
 
 # Résultat IA + sauvegarde
 if st.session_state.result_json:
