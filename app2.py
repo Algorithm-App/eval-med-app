@@ -29,6 +29,7 @@ if st.session_state.get("reset"):
     st.session_state.student_id = ""
     st.session_state.reset = False
     st.experimental_rerun()
+    st.stop()
 
 client = None
 if openai_api_key and openai_org and openai_project:
