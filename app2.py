@@ -204,6 +204,9 @@ if st.session_state.evaluation:
     st.markdown("### 📝 Transcription de l'étudiant")
     st.text_area("Texte transcrit :", value=st.session_state.transcript, height=200)
 
+    note_eval1 = st.text_input("✏️ Note de l'évaluateur 1", help="Sur 20")
+    note_eval2 = st.text_input("✏️ Note de l'évaluateur 2", help="Sur 20")
+
     if st.download_button("⬇️ Télécharger le résultat (CSV)",
                           data=f"id,date,transcription,evaluation\n{student_id},{datetime.now().isoformat()},{st.session_state.transcript},{st.session_state.evaluation}",
                           file_name=f"Evaluation_{student_id}.csv",
