@@ -138,13 +138,13 @@ def recorder_html():
     <input type="file" id="upload_input" name="audio" style="display:none" />
     """
 
-st.subheader("🎧 Enregistrement de l'étudiant avec visualisation audio")
+st.subheader("🎧 Enregistrement de l'étudiant")
 st.components.v1.html(recorder_html(), height=220)
 
 # 📥 Téléverser l'enregistrement manuel ou généré automatiquement
 audio_file = st.file_uploader("📤 Charger l'enregistrement généré ci-dessus ou un autre fichier (.wav, .mp3, .m4a)", type=["wav", "mp3", "m4a"])
 
-if audio_file and client and st.button("🔈 Transcrire avec Whisper"):
+if audio_file and client and st.button("Transcription"):
     ext = os.path.splitext(audio_file.name)[1]
     with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp_file:
         tmp_file.write(audio_file.read())
