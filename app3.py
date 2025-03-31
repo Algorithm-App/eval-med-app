@@ -96,8 +96,77 @@ if rubric_docx:
     with st.expander("📊 Grille d’évaluation"):
         st.json(rubric)
 
-# 🎙️ Audio
-st.markdown("## 🎙️ Réponse de l’étudiant")
+# 🎙️ Enregistrement audio (HTML5)
+st.markdown("## 🎤 Enregistrement de la réponse de l’étudiant")
+st.components.v1.html("""
+<script>
+let mediaRecorder;
+let audioChunks = [];
+let audioContext;
+let analyser;
+let dataArray;
+let animationId;
+
+function startRecording() {
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+        audioContext = new AudioContext();
+        const source = audioContext.createMediaStreamSource(stream);
+        analyser = audioContext.createAnalyser();
+        source.connect(analyser);
+        analyser.fftSize = 256;
+        const bufferLength = analyser.frequencyBinCount;
+        dataArray = new Uint8Array(bufferLength);
+
+        const canvas = document.getElementById("visualizer");
+        const canvasCtx = canvas.getContext("2d");
+        canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+
+        function draw() {
+            animationId = requestAnimationFrame(draw);
+            analyser.getByteFrequencyData(dataArray);
+            canvasCtx.fillStyle = 'rgb(255, 255, 255)';
+            canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+            const barWidth = (canvas.width / bufferLength) * 2.5;
+            let barHeight;
+            let x = 0;
+            for(let i = 0; i < bufferLength; i++) {
+                barHeight = dataArray[i];
+                canvasCtx.fillStyle = 'rgb(' + (barHeight+100) + ',50,50)';
+                canvasCtx.fillRect(x, canvas.height - barHeight/2, barWidth, barHeight/2);
+                x += barWidth + 1;
+            }
+        }
+
+        draw();
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.start();
+        audioChunks = [];
+        mediaRecorder.addEventListener("dataavailable", event => {
+            audioChunks.push(event.data);
+        });
+        mediaRecorder.addEventListener("stop", () => {
+            cancelAnimationFrame(animationId);
+            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            const audioUrl = URL.createObjectURL(audioBlob);
+            const downloadLink = document.getElementById("download");
+            downloadLink.href = audioUrl;
+            downloadLink.download = "reponse_etudiant.wav";
+            downloadLink.style.display = "block";
+        });
+    });
+}
+
+function stopRecording() {
+    if (mediaRecorder) mediaRecorder.stop();
+}
+</script>
+<button onclick="startRecording()">🎙️ Démarrer</button>
+<button onclick="stopRecording()">⏹️ Arrêter</button>
+<canvas id="visualizer" width="300" height="100" style="margin-top:10px; border:1px solid #ccc;"></canvas>
+<a id="download" style="display:none; margin-top:10px">📥 Télécharger l'enregistrement</a>
+""", height=280)
+
+# 📤 Upload audio manuel
 audio_file = st.file_uploader("📤 Charger un fichier audio (.wav, .mp3, .m4a)", type=["wav", "mp3", "m4a"])
 if audio_file and client and st.button("🔈 Transcrire avec Whisper"):
     ext = os.path.splitext(audio_file.name)[1]
@@ -141,7 +210,7 @@ if st.button("🧠 Évaluer avec GPT-4 (JSON)"):
         except Exception as e:
             st.error(f"Erreur GPT-4 : {e}")
 
-# Affichage JSON + Notes humaines
+# Résultat IA + sauvegarde
 if st.session_state.result_json:
     try:
         result = json.loads(st.session_state.result_json)
@@ -167,7 +236,7 @@ if st.session_state.result_json:
     except Exception as e:
         st.error(f"Erreur de parsing JSON : {e}")
 
-# Résultats
+# Historique
 st.markdown("### 🧾 Historique des évaluations")
 if st.checkbox("📂 Afficher le tableau des résultats"):
     df_eval = pd.read_sql_query("SELECT * FROM evaluations", conn)
