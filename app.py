@@ -5,10 +5,7 @@ import os
 from docx import Document
 from datetime import datetime
 from openai import OpenAI
-from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, WebRtcMode
-import av
 import numpy as np
-import queue
 from scipy.io.wavfile import write
 
 # Configuration page
@@ -60,57 +57,57 @@ if rubric_docx is not None:
     with st.expander("📊 Grille d'évaluation", expanded=False):
         st.json(rubric)
 
-# 🎙️ Réponse orale - WebRTC
-st.subheader("🎤 Enregistrement direct (WebRTC)")
+# 🎙️ Enregistrement audio HTML5 (navigateur)
+st.subheader("🎤 Enregistrement direct (navigateur)")
 
-class AudioProcessor(AudioProcessorBase):
-    def __init__(self) -> None:
-        self.recorded_frames = []
-        self.level = 0
+st.markdown("""
+<script>
+let mediaRecorder;
+let audioChunks = [];
 
-    def recv(self, frame: av.AudioFrame) -> av.AudioFrame:
-        pcm = frame.to_ndarray()
-        self.level = min(np.linalg.norm(pcm) / 10000, 1.0)
-        self.recorded_frames.append(pcm)
-        return frame
+function startRecording() {
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.start();
 
-    def get_wav(self):
-        if self.recorded_frames:
-            audio = np.concatenate(self.recorded_frames, axis=1).flatten()
-            tmp_path = tempfile.mktemp(suffix=".wav")
-            write(tmp_path, 48000, audio)
-            return tmp_path
-        return None
+    audioChunks = [];
+    mediaRecorder.addEventListener("dataavailable", event => {
+      audioChunks.push(event.data);
+    });
 
-ctx = webrtc_streamer(
-    key="audio",
-    mode=WebRtcMode.SENDONLY,
-    audio_receiver_size=1024,
-    audio_processor_factory=AudioProcessor,
-)
+    mediaRecorder.addEventListener("stop", () => {
+      const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const downloadLink = document.getElementById("download");
+      downloadLink.href = audioUrl;
+      downloadLink.download = "reponse_etudiant.wav";
+      downloadLink.style.display = "block";
 
-if ctx.audio_processor:
-    st.progress(ctx.audio_processor.level)
-    if st.button("🔈 Transcrire l'enregistrement WebRTC"):
-        wav_path = ctx.audio_processor.get_wav()
-        if wav_path and client:
-            with open(wav_path, "rb") as f:
-                try:
-                    transcript = client.audio.transcriptions.create(
-                        model="whisper-1",
-                        file=f,
-                        language="fr"
-                    )
-                    st.session_state.transcript = transcript.text
-                    st.success("✅ Transcription réussie (WebRTC)")
-                except Exception as e:
-                    st.error(f"❌ Erreur Whisper : {e}")
+      const uploadInput = document.getElementById("upload_input");
+      const file = new File([audioBlob], "reponse_etudiant.wav");
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      uploadInput.files = dt.files;
+    });
+  });
+}
 
-# 📥 Téléchargement manuel fichier audio
-st.subheader("📁 Ou charger un fichier audio")
-audio_file = st.file_uploader("Charger un fichier (.mp3, .wav, .m4a)", type=["mp3", "wav", "m4a"])
+function stopRecording() {
+  if (mediaRecorder) {
+    mediaRecorder.stop();
+  }
+}
+</script>
+<button onclick="startRecording()">🎙️ Démarrer l'enregistrement</button>
+<button onclick="stopRecording()">⏹️ Arrêter</button>
+<a id="download" style="display:none; margin-top:10px">📥 Télécharger l'enregistrement</a>
+<input type="file" id="upload_input" style="display:none" />
+""", unsafe_allow_html=True)
 
-if audio_file and client and st.button("🎧 Transcrire le fichier audio"):
+# 📤 Récupérer le fichier audio uploadé automatiquement ou manuellement
+audio_file = st.file_uploader("📥 Charger ou utiliser l'enregistrement ci-dessus", type=["wav", "mp3", "m4a"])
+
+if audio_file and client and st.button("🔈 Transcrire avec Whisper"):
     ext = os.path.splitext(audio_file.name)[1]
     with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp_file:
         tmp_file.write(audio_file.read())
@@ -124,7 +121,7 @@ if audio_file and client and st.button("🎧 Transcrire le fichier audio"):
             )
         st.session_state.transcript = transcript.text
         os.remove(tmp_path)
-        st.success("✅ Transcription réussie (fichier audio)")
+        st.success("✅ Transcription réussie")
     except Exception as e:
         st.error(f"❌ Erreur : {e}")
 
