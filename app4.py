@@ -288,7 +288,7 @@ Voici un exemple de format JSON strict que tu dois retourner :
         )
 
         result_text = response.choices[0].message.content.strip()
-        json_match = re.search(r"\{.*\}", result_text, re.DOTALL)
+        json_match = re.search(r"\{{.*\}}", result_text, re.DOTALL)
         if json_match:
             result = json.loads(json_match.group())
         else:
