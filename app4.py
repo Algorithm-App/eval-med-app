@@ -218,13 +218,23 @@ def main():
             transcript_text = transcript.text
 
             prompt = f"""
-            Tu es un examinateur médical. Évalue l'étudiant {student_id}.
-            Cas : {clinical_text}
-            Réponse : {transcript_text}
-            Grille : {json.dumps(rubric, ensure_ascii=False)}
-
-            Donne un JSON strict avec : notes[], synthese, prise_en_charge, note_finale, commentaire.
-            """
+            Tu es un examinateur médical. Voici ta tâche :
+            1. Évalue chaque critère (notes[]) avec score (0 ou 1) et justification.
+            2. Donne une **note de synthèse** : un **nombre décimal entre 0 et 1** (ex: 0.5).
+            3. Donne une **note de prise en charge** : un **nombre décimal entre 0 et 1**.
+            4. Calcule une **note finale** sur 20 (nombre décimal).
+            5. Rédige un **commentaire global** (5 lignes max).
+            
+            ⚠️ Toutes les valeurs doivent être des **nombres** pour les notes, pas du texte. Retourne un JSON strict sans texte autour, comme :
+            
+            ```json
+            {{
+              "notes": [{{"critère": "...", "score": 1, "justification": "..."}}],
+              "synthese": 0.75,
+              "prise_en_charge": 1.0,
+              "note_finale": 18.5,
+              "commentaire": "Très bonne réponse globale."
+            }}
             result = evaluate_with_gpt4(client, prompt)
 
             st.subheader(f"📊 Note finale : {result['note_finale']} / 20")
