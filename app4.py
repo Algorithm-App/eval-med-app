@@ -218,16 +218,13 @@ def main():
             transcript_text = transcript.text
 
             prompt = f"""
-            Tu es un examinateur médical. Voici ta tâche :
+            Tu es un examinateur médical rigoureux. Voici ta tâche :
             1. Évalue chaque critère (notes[]) avec score (0 ou 1) et justification.
             2. Donne une **note de synthèse** : un **nombre décimal entre 0 et 1** (ex: 0.5).
             3. Donne une **note de prise en charge** : un **nombre décimal entre 0 et 1**.
             4. Calcule une **note finale** sur 20 (nombre décimal).
             5. Rédige un **commentaire global** (5 lignes max).
-            
             ⚠️ Toutes les valeurs doivent être des **nombres** pour les notes, pas du texte. Retourne un JSON strict sans texte autour, comme :
-            
-            ```json
             {{
               "notes": [{{"critère": "...", "score": 1, "justification": "..."}}],
               "synthese": 0.75,
@@ -235,6 +232,11 @@ def main():
               "note_finale": 18.5,
               "commentaire": "Très bonne réponse globale."
             }}
+            Cas : {clinical_text}
+            Réponse de l'étudiant : {transcript_text}
+            Grille : {json.dumps(rubric, ensure_ascii=False)}
+            """
+
             result = evaluate_with_gpt4(client, prompt)
 
             st.subheader(f"📊 Note finale : {result['note_finale']} / 20")
@@ -248,10 +250,7 @@ def main():
                 conn.execute("INSERT OR IGNORE INTO etudiants VALUES (?, ?, ?)",
                              (student_id, datetime.now(), hash_identification(student_id)))
                 for note in result["notes"]:
-                    conn.execute("""
-                        INSERT INTO evaluations_ia VALUES
-                        (NULL, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
+                    conn.execute("INSERT INTO evaluations_ia VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?)", (
                         student_id, note["critère"], note["score"], note["justification"],
                         result["synthese"], result["prise_en_charge"],
                         result["note_finale"], result["commentaire"]
