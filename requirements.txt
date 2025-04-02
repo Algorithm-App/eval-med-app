@@ -5,4 +5,8 @@ python-docx
 scipy
 av
 numpy
-
+werkzeug
+python-magic
+pydantic
+python-dotenv
+pandas
